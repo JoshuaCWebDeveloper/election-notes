@@ -95,7 +95,7 @@ nav span {
   margin-top: auto;
 }
 
-.reset {
+.restore {
   margin-top: 0;
 }
 
@@ -111,6 +111,56 @@ nav span {
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+
+.modal-backdrop {
+  align-items: center;
+  background: rgba(29, 36, 48, 0.56);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 10;
+}
+
+.modal {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 1.25rem 3rem rgba(29, 36, 48, 0.24);
+  display: grid;
+  gap: 1rem;
+  max-width: 31rem;
+  padding: 1.2rem;
+  width: min(100%, 31rem);
+}
+
+.modal p {
+  color: #6c7888;
+  margin: 0.25rem 0 0;
+}
+
+.checkbox-row {
+  align-items: center;
+  display: flex;
+  font-weight: 600;
+  gap: 0.55rem;
+}
+
+.checkbox-row input {
+  min-height: auto;
+  width: auto;
+}
+
+.modal-error {
+  color: #9d2424 !important;
+  font-weight: 650;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
 }
 
 header {

@@ -13,7 +13,7 @@ import {
   storeNames
 } from '../repositories/indexedDb';
 import { exportBackup } from '../repositories/backup';
-import { createBackupJson, loadDatabase, resetDatabase, saveEntity, deleteEntity } from './database';
+import { canRestoreSeedData, createBackupJson, loadDatabase, resetDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, deleteEntity, validateDatabase } from './database';
 
 const databaseName = 'election-notes';
 const legacyStorageKey = 'election-notes-db-v1';
@@ -143,7 +143,7 @@ describe.sequential('database service data operations', () => {
   it('loads seed data on first run when IndexedDB and legacy storage are empty', async () => {
     const loaded = await loadDatabase();
 
-    expect(loaded).toEqual(seedData);
+    expect(loaded).toEqual(idSortedDatabase(seedData));
     expect(await loadAllStores()).toEqual(idSortedDatabase(seedData));
     expect(await isDatabaseInitialized()).toBe(true);
   });
@@ -210,7 +210,7 @@ describe.sequential('database service data operations', () => {
 
     localStorage.setItem(legacyStorageKey, JSON.stringify(emptyDatabase()));
     const reset = await resetDatabase();
-    expect(reset).toEqual(seedData);
+    expect(reset).toEqual(idSortedDatabase(seedData));
     expect(await loadAllStores()).toEqual(idSortedDatabase(seedData));
     expect(localStorage.getItem(legacyStorageKey)).toBeNull();
   });
@@ -232,5 +232,44 @@ describe.sequential('database service data operations', () => {
     expect(await exportBackup()).toEqual(data);
     expect(JSON.parse(await createBackupJson())).toEqual(data);
     expect(await createBackupJson()).toBe(JSON.stringify(data, null, 2));
+  });
+
+  it('validates full backup shape before restoring from JSON', async () => {
+    const data = emptyDatabase();
+    data.candidates.push({
+      id: 11,
+      firstName: 'Import',
+      middleName: null,
+      lastName: 'Candidate',
+      score: null,
+      confidence: null,
+      stancesCount: null,
+      confidenceScoreProduct: null
+    });
+
+    await replaceAllStores(seedData);
+
+    await expect(restoreDatabaseFromJson('{bad json')).rejects.toThrow('Backup file must be valid JSON.');
+    await expect(restoreDatabaseFromJson(JSON.stringify({ candidates: [] }))).rejects.toThrow('Backup must contain exactly these stores');
+    await expect(restoreDatabaseFromJson(JSON.stringify({ ...data, candidates: [{ id: 1 }] }))).rejects.toThrow('does not match the expected shape');
+    expect(await loadAllStores()).toEqual(idSortedDatabase(seedData));
+
+    const restored = await restoreDatabaseFromJson(JSON.stringify(data));
+    expect(restored).toEqual(data);
+    expect(await loadAllStores()).toEqual(data);
+  });
+
+  it('restores exactly from bundled seed data when available', async () => {
+    await replaceAllStores(emptyDatabase());
+    localStorage.setItem(legacyStorageKey, JSON.stringify(emptyDatabase()));
+
+    expect(canRestoreSeedData()).toBe(true);
+    expect(validateDatabase(seedData)).toEqual(seedData);
+
+    const restored = await restoreDatabaseFromSeed();
+
+    expect(restored).toEqual(idSortedDatabase(seedData));
+    expect(await loadAllStores()).toEqual(idSortedDatabase(seedData));
+    expect(localStorage.getItem(legacyStorageKey)).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
-import { createBackupJson, deleteEntity, loadDatabase, resetDatabase, saveEntity, type EntityKey } from './services/database';
+import { Download, Plus, RotateCcw, Save, Trash2, Upload } from 'lucide-react';
+import { canRestoreSeedData, createBackupJson, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
 import type { Candidate, Database, Election, ElectionIssue, Fact, First, Id, Issue, Stance, StanceFact } from './types';
 
 type Tab = {
@@ -158,6 +158,12 @@ export function App() {
   const active = tabs.find((tab) => tab.key === activeKey)!;
   const rows = db?.[active.key] ?? [];
   const [selectedId, setSelectedId] = useState<Id>(rows[0]?.id ?? 0);
+  const [restoreOpen, setRestoreOpen] = useState(false);
+  const [restoreUseSeed, setRestoreUseSeed] = useState(false);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const seedRestoreAvailable = canRestoreSeedData();
   const selected = db ? rows.find((row) => row.id === selectedId) ?? rows[0] ?? active.blank(db) : null;
 
   useEffect(() => {
@@ -192,12 +198,6 @@ export function App() {
     setSelectedId(nextRows[0]?.id ?? 0);
   }
 
-  async function reset() {
-    const data = await resetDatabase();
-    setDb(data);
-    setSelectedId(data[active.key][0]?.id ?? 0);
-  }
-
   async function backup() {
     const json = await createBackupJson();
     const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
@@ -206,6 +206,28 @@ export function App() {
     link.download = `election-notes-backup-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function restore() {
+    setRestoreError(null);
+    if (!restoreUseSeed && !restoreFile) {
+      setRestoreError('Choose a JSON backup file or use the bundled seed data.');
+      return;
+    }
+
+    try {
+      setRestoreBusy(true);
+      const data = restoreUseSeed ? await restoreDatabaseFromSeed() : await restoreDatabaseFromJson(await restoreFile!.text());
+      setDb(data);
+      setSelectedId(data[active.key][0]?.id ?? 0);
+      setRestoreOpen(false);
+      setRestoreUseSeed(false);
+      setRestoreFile(null);
+    } catch (error) {
+      setRestoreError(error instanceof Error ? error.message : 'Restore failed.');
+    } finally {
+      setRestoreBusy(false);
+    }
   }
 
   if (!db || !selected) {
@@ -237,8 +259,50 @@ export function App() {
           ))}
         </nav>
         <button className="backup" onClick={backup}><Download size={16} /> Backup</button>
-        <button className="reset" onClick={reset}><RotateCcw size={16} /> Reset seed data</button>
+        <button className="restore" onClick={() => { setRestoreOpen(true); setRestoreError(null); }}><RotateCcw size={16} /> Restore</button>
       </aside>
+      {restoreOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="restore-title">
+            <div>
+              <h2 id="restore-title">Restore database</h2>
+              <p>Replace every local store from a full JSON backup.</p>
+            </div>
+            <label>
+              JSON backup file
+              <input
+                type="file"
+                accept="application/json,.json"
+                disabled={restoreUseSeed}
+                onChange={(event) => {
+                  setRestoreFile(event.target.files?.[0] ?? null);
+                  setRestoreError(null);
+                }}
+              />
+            </label>
+            {seedRestoreAvailable && (
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={restoreUseSeed}
+                  onChange={(event) => {
+                    setRestoreUseSeed(event.target.checked);
+                    setRestoreError(null);
+                  }}
+                />
+                Use bundled seedData file
+              </label>
+            )}
+            {restoreError && <p className="modal-error">{restoreError}</p>}
+            <div className="modal-actions">
+              <button type="button" onClick={() => { setRestoreOpen(false); setRestoreError(null); }} disabled={restoreBusy}>Cancel</button>
+              <button type="button" className="danger" onClick={restore} disabled={restoreBusy}>
+                <Upload size={16} /> {restoreBusy ? 'Restoring...' : 'Restore'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       <section className="workspace">
         <header>
           <div>

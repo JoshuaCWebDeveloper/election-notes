@@ -131,6 +131,10 @@ export function hasRecords(data: Database): boolean {
   return storeNames.some((storeName) => data[storeName].length > 0);
 }
 
+export function hasSeedData(): boolean {
+  return storeNames.every((storeName) => Array.isArray(seedData[storeName]));
+}
+
 export function cloneSeedData(): Database {
   return structuredClone(seedData);
 }
