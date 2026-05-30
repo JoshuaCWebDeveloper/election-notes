@@ -129,6 +129,7 @@ h4 {
 }
 
 .content {
+  align-items: start;
   display: grid;
   grid-template-columns: minmax(16rem, 24rem) 1fr;
   gap: 1rem;
