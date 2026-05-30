@@ -14,6 +14,8 @@ import {
 } from '../repositories/indexedDb';
 import { exportBackup } from '../repositories/backup';
 import { canRestoreSeedData, createBackupJson, loadDatabase, resetDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, deleteEntity, validateDatabase } from './database';
+import { candidateFromInlineName, duplicateElection, issueFromInlineName } from './elections';
+import { getCandidateContestRows, getReportPanelData, reportDashboards, scoreElection } from './reports';
 
 const databaseName = 'election-notes';
 const legacyStorageKey = 'election-notes-db-v1';
@@ -271,5 +273,138 @@ describe.sequential('database service data operations', () => {
     expect(restored).toEqual(idSortedDatabase(seedData));
     expect(await loadAllStores()).toEqual(idSortedDatabase(seedData));
     expect(localStorage.getItem(legacyStorageKey)).toBeNull();
+  });
+});
+
+describe('Directus report data operations', () => {
+  it('maps the db-directus.sql dashboard panels to computed chart rows', () => {
+    const data = emptyDatabase();
+    data.candidates.push(
+      { id: 1, firstName: 'Ada', middleName: null, lastName: 'Alpha', score: 25, confidence: 75.5, stancesCount: 2, confidenceScoreProduct: 1887.5 },
+      { id: 2, firstName: 'Ben', middleName: null, lastName: 'Beta', score: 10, confidence: null, stancesCount: 1, confidenceScoreProduct: null }
+    );
+    data.issues.push(
+      { id: 3, name: 'High points', description: null, points: 100, confidence: 12, stancesCount: 4 },
+      { id: 4, name: 'Low points', description: null, points: 1, confidence: 99, stancesCount: 1 }
+    );
+    data.stances.push(
+      { id: 5, date_created: null, date_updated: null, title: 'Known', candidate: 1, issue: 3, rating: 50, points: null, confidence: 88.84, label: 'Known confidence', description: null },
+      { id: 6, date_created: null, date_updated: null, title: 'Unknown', candidate: 2, issue: 4, rating: null, points: null, confidence: null, label: 'Missing confidence', description: null }
+    );
+
+    const candidatesDashboard = reportDashboards.find((dashboard) => dashboard.name === 'Candidates')!;
+    const scores = getReportPanelData(candidatesDashboard.panels[0], data);
+    expect(scores).toEqual([
+      { id: 1, label: 'Alpha', value: 25, color: '#E35169' },
+      { id: 2, label: 'Beta', value: 10, color: '#E35169' }
+    ]);
+
+    const stancesDashboard = reportDashboards.find((dashboard) => dashboard.name === 'Stances')!;
+    expect(getReportPanelData(stancesDashboard.panels[0], data)).toEqual([
+      { id: 5, label: 'Known confidence', value: 88.8, color: '#3399FF' }
+    ]);
+    expect(getReportPanelData(stancesDashboard.panels[1], data)).toEqual([
+      { id: 6, label: 'Missing confidence', value: null, color: null }
+    ]);
+    expect(getReportPanelData(stancesDashboard.panels[2], data).map((item) => item.label)).toEqual(['High points', 'Low points']);
+  });
+
+  it('computes candidate contest rows from election-specific issue weights', () => {
+    const data = emptyDatabase();
+    data.candidates.push(
+      { id: 1, firstName: 'Ada', middleName: null, lastName: 'Alpha', score: 5, confidence: null, stancesCount: null, confidenceScoreProduct: null },
+      { id: 2, firstName: 'Ben', middleName: null, lastName: 'Beta', score: 50, confidence: null, stancesCount: null, confidenceScoreProduct: null }
+    );
+    data.issues.push({ id: 10, name: 'Privacy', description: null, points: 100, confidence: null, stancesCount: null });
+    data.stances.push(
+      { id: 20, date_created: null, date_updated: null, title: null, candidate: 1, issue: 10, rating: 100, points: null, confidence: null, label: null, description: null },
+      { id: 21, date_created: null, date_updated: null, title: null, candidate: 2, issue: 10, rating: 25, points: null, confidence: null, label: null, description: null }
+    );
+    data.elections.push({ id: 30, name: 'General', date: null, description: null, candidateIds: [1, 2], issues: [{ issueId: 10, points: 80 }] });
+
+    expect(scoreElection(data.elections[0], data).map((row) => [row.candidate.id, row.score])).toEqual([[1, 80], [2, 20]]);
+    expect(getCandidateContestRows(data)).toEqual([{ election: data.elections[0], candidates: scoreElection(data.elections[0], data) }]);
+
+    data.elections = [];
+    expect(getCandidateContestRows(data)[0].candidates.map((row) => row.candidate.id)).toEqual([2, 1]);
+  });
+
+  it('filters report panels to selected election membership', () => {
+    const data = emptyDatabase();
+    data.candidates.push(
+      { id: 1, firstName: 'Ada', middleName: null, lastName: 'Alpha', score: 25, confidence: 75.5, stancesCount: 2, confidenceScoreProduct: 1887.5 },
+      { id: 2, firstName: 'Ben', middleName: null, lastName: 'Beta', score: 10, confidence: null, stancesCount: 1, confidenceScoreProduct: null },
+      { id: 3, firstName: 'Cid', middleName: null, lastName: 'Gamma', score: 90, confidence: 95, stancesCount: 1, confidenceScoreProduct: 8550 }
+    );
+    data.issues.push(
+      { id: 10, name: 'Privacy', description: null, points: 100, confidence: 70, stancesCount: 2 },
+      { id: 11, name: 'Transit', description: null, points: 50, confidence: 90, stancesCount: 1 }
+    );
+    data.stances.push(
+      { id: 20, date_created: null, date_updated: null, title: null, candidate: 1, issue: 10, rating: 100, points: null, confidence: 80, label: 'Included', description: null },
+      { id: 21, date_created: null, date_updated: null, title: null, candidate: 3, issue: 11, rating: 100, points: null, confidence: 90, label: 'Excluded', description: null }
+    );
+    const election = { id: 30, name: 'General', date: null, description: null, candidateIds: [1, 2], issues: [{ issueId: 10, points: 80 }] };
+
+    const candidatesDashboard = reportDashboards.find((dashboard) => dashboard.name === 'Candidates')!;
+    expect(getReportPanelData(candidatesDashboard.panels[0], data, election).map((item) => item.id)).toEqual([1, 2]);
+
+    const stancesDashboard = reportDashboards.find((dashboard) => dashboard.name === 'Stances')!;
+    expect(getReportPanelData(stancesDashboard.panels[0], data, election).map((item) => item.label)).toEqual(['Included']);
+    expect(getReportPanelData(stancesDashboard.panels[2], data, election).map((item) => item.label)).toEqual(['Privacy']);
+    expect(getCandidateContestRows(data, election)).toEqual([{ election, candidates: scoreElection(election, data) }]);
+  });
+});
+
+describe('election UX helpers', () => {
+  it('duplicates elections with a new id while preserving selected candidates and weighted issues', () => {
+    const data = emptyDatabase();
+    const election = {
+      id: 3,
+      name: 'Primary',
+      date: '2026-06-01T00:00:00.000Z',
+      description: 'Original notes',
+      candidateIds: [1, 2],
+      issues: [{ issueId: 5, points: 25 }]
+    };
+    data.elections.push({ ...election }, { ...election, id: 7, name: 'Other' });
+
+    const copy = duplicateElection(election, data);
+
+    expect(copy).toMatchObject({
+      id: 8,
+      name: 'Primary (copy)',
+      date: '2026-06-02T00:00:00.000Z',
+      description: 'Copied from Primary.\n\nOriginal notes',
+      candidateIds: [1, 2],
+      issues: [{ issueId: 5, points: 25 }]
+    });
+    expect(copy).not.toBe(election);
+    expect(copy.issues).not.toBe(election.issues);
+  });
+
+  it('builds inline candidate and issue records with new ids', () => {
+    const data = emptyDatabase();
+    data.candidates.push({ id: 2, firstName: 'Existing', middleName: null, lastName: 'Candidate', score: null, confidence: null, stancesCount: null, confidenceScoreProduct: null });
+    data.issues.push({ id: 4, name: 'Existing issue', description: null, points: 10, confidence: null, stancesCount: null });
+
+    expect(candidateFromInlineName('Ada Lovelace', data)).toEqual({
+      id: 3,
+      firstName: 'Ada',
+      middleName: null,
+      lastName: 'Lovelace',
+      score: null,
+      confidence: null,
+      stancesCount: null,
+      confidenceScoreProduct: null
+    });
+    expect(issueFromInlineName('Ballot access', data)).toEqual({
+      id: 5,
+      name: 'Ballot access',
+      description: null,
+      points: 0,
+      confidence: null,
+      stancesCount: null
+    });
   });
 });

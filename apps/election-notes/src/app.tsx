@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Download, Plus, RotateCcw, Save, Trash2, Upload } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { Copy, Download, Plus, RotateCcw, Save, Trash2, Upload, X } from 'lucide-react';
 import { canRestoreSeedData, createBackupJson, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
+import { candidateFromInlineName, duplicateElection, issueFromInlineName, nextId } from './services/elections';
+import { getCandidateContestRows, getReportPanelData, reportDashboards, scoreElection, type ReportDatum, type ReportPanel } from './services/reports';
 import type { Candidate, Database, Election, ElectionIssue, Fact, First, Id, Issue, Stance, StanceFact } from './types';
 
 type Tab = {
@@ -14,14 +16,10 @@ type Tab = {
 type Field = {
   key: string;
   label: string;
-  type: 'text' | 'textarea' | 'number' | 'date' | 'select' | 'multiselect' | 'electionIssues';
+  type: 'text' | 'textarea' | 'number' | 'date' | 'select' | 'electionCandidates' | 'electionIssues';
   entity?: EntityKey;
   nullable?: boolean;
 };
-
-function nextId(rows: { id: Id }[]) {
-  return Math.max(0, ...rows.map((row) => row.id)) + 1;
-}
 
 function candidateName(candidate?: Candidate | null) {
   if (!candidate) return 'Unassigned';
@@ -63,7 +61,7 @@ const tabs: Tab[] = [
       { key: 'name', label: 'Name', type: 'text' },
       { key: 'date', label: 'Date', type: 'date', nullable: true },
       { key: 'description', label: 'Description', type: 'textarea', nullable: true },
-      { key: 'candidateIds', label: 'Candidates', type: 'multiselect', entity: 'candidates' },
+      { key: 'candidateIds', label: 'Candidates', type: 'electionCandidates', entity: 'candidates' },
       { key: 'issues', label: 'Election issue weights', type: 'electionIssues', entity: 'issues' }
     ]
   },
@@ -190,6 +188,20 @@ export function App() {
     setSelectedId(row.id);
   }
 
+  async function saveToStore<TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number]) {
+    if (!db) return;
+    await saveEntity(storeName, row);
+    setDb((current) => current ? { ...current, [storeName]: [...current[storeName], row] } : current);
+  }
+
+  async function duplicateSelectedElection() {
+    if (!db || active.key !== 'elections') return;
+    const copy = duplicateElection(selected as Election, db);
+    await saveEntity('elections', copy);
+    setDb({ ...db, elections: [...db.elections, copy] });
+    setSelectedId(copy.id);
+  }
+
   async function remove(id: Id) {
     if (!db) return;
     const nextRows = rows.filter((row) => row.id !== id);
@@ -309,7 +321,10 @@ export function App() {
             <h2>{active.label}</h2>
             <p>{active.key === 'elections' ? 'Election issue points are stored per election and used for scoring.' : 'Create, edit, delete, and connect SQL-derived records.'}</p>
           </div>
-          <button onClick={() => { const row = active.blank(db); save(row); }}><Plus size={16} /> New</button>
+          <div className="header-actions">
+            {active.key === 'elections' && <button onClick={duplicateSelectedElection}><Copy size={16} /> Duplicate</button>}
+            <button onClick={() => { const row = active.blank(db); save(row); }}><Plus size={16} /> New</button>
+          </div>
         </header>
         <div className="content">
           <div className="list">
@@ -320,14 +335,166 @@ export function App() {
               </button>
             ))}
           </div>
-          <Editor key={`${active.key}-${selected.id}`} db={db} tab={active} row={selected} onSave={save} onDelete={remove} />
+          <Editor
+            key={`${active.key}-${selected.id}`}
+            db={db}
+            tab={active}
+            row={selected}
+            onCreateCandidate={async (name) => {
+              const candidate = candidateFromInlineName(name, db);
+              await saveToStore('candidates', candidate);
+              return candidate.id;
+            }}
+            onCreateIssue={async (name) => {
+              const issue = issueFromInlineName(name, db);
+              await saveToStore('issues', issue);
+              return issue.id;
+            }}
+            onSave={save}
+            onDelete={remove}
+          />
         </div>
       </section>
     </main>
   );
 }
 
-function Editor({ db, tab, row, onSave, onDelete }: { db: Database; tab: Tab; row: Database[EntityKey][number]; onSave: (row: Database[EntityKey][number]) => void; onDelete: (id: Id) => void }) {
+function ReportsView({ db, election }: { db: Database; election: Election }) {
+  return (
+    <section className="reports" aria-labelledby="reports-title">
+      <div className="reports-heading">
+        <div>
+          <h2 id="reports-title">Directus Reports</h2>
+          <p>Dashboards and panels recovered from db-directus.sql for {election.name}.</p>
+        </div>
+      </div>
+      <div className="dashboard-grid">
+        {reportDashboards.map((dashboard) => (
+          <section className="dashboard" key={dashboard.id}>
+            <h3>{dashboard.name}</h3>
+            <div className="panel-grid">
+              {dashboard.panels.map((panel) => (
+                <ReportPanelView db={db} election={election} key={panel.id} panel={panel} />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ReportPanelView({ db, election, panel }: { db: Database; election: Election; panel: ReportPanel }) {
+  if (panel.type === 'candidate-contest') {
+    return (
+      <article className="report-panel wide-panel">
+        <h4>{panel.name}</h4>
+        <div className="contest-grid">
+          {getCandidateContestRows(db, election).map((contest) => (
+            <div key={contest.election?.id ?? 'legacy'}>
+              <strong>{contest.election?.name ?? 'Legacy candidate scores'}</strong>
+              {contest.candidates.slice(0, 6).map((row, index) => (
+                <div className="contest-row" key={row.candidate.id}>
+                  <span>{index + 1}. {candidateName(row.candidate)}</span>
+                  <b>{formatScore(row.score)}</b>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </article>
+    );
+  }
+
+  const data = getReportPanelData(panel, db, election);
+  if (panel.type === 'list') {
+    return (
+      <article className="report-panel">
+        <h4>{panel.name}</h4>
+        <ul className="report-list">
+          {data.map((item) => <li key={item.id}>{item.label}</li>)}
+        </ul>
+      </article>
+    );
+  }
+
+  return (
+    <article className="report-panel">
+      <h4>{panel.name}</h4>
+      <BarChart data={data} horizontal={panel.horizontal === true} />
+    </article>
+  );
+}
+
+function BarChart({ data, horizontal }: { data: ReportDatum[]; horizontal: boolean }) {
+  const max = Math.max(1, ...data.map((item) => Math.abs(item.value ?? 0)));
+  if (data.length === 0) return <p className="empty-report">No report data.</p>;
+  if (!horizontal) {
+    return (
+      <div className="column-chart">
+        <div className="chart-plot">
+          {data.map((item) => {
+            const percent = Math.max(1, Math.abs(item.value ?? 0) / max * 100);
+            return (
+              <div className="chart-column" key={item.id}>
+                <b>{formatScore(item.value)}</b>
+                <i
+                  aria-label={`${item.label}: ${formatScore(item.value)}`}
+                  style={{
+                    '--bar-percent': `${percent}%`,
+                    background: item.color ?? '#176b87'
+                  } as CSSProperties}
+                />
+                <span>{item.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bar-chart">
+      {data.map((item) => {
+        const percent = Math.max(1, Math.abs(item.value ?? 0) / max * 100);
+        return (
+          <div className="bar-row" key={item.id}>
+            <span>{item.label}</span>
+            <div className="bar-axis">
+              <i
+                aria-label={`${item.label}: ${formatScore(item.value)}`}
+                style={{
+                  '--bar-percent': `${percent}%`,
+                  background: item.color ?? '#176b87'
+                } as CSSProperties}
+              />
+            </div>
+            <b>{formatScore(item.value)}</b>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Editor({
+  db,
+  tab,
+  row,
+  onCreateCandidate,
+  onCreateIssue,
+  onSave,
+  onDelete
+}: {
+  db: Database;
+  tab: Tab;
+  row: Database[EntityKey][number];
+  onCreateCandidate: (name: string) => Promise<Id>;
+  onCreateIssue: (name: string) => Promise<Id>;
+  onSave: (row: Database[EntityKey][number]) => void;
+  onDelete: (id: Id) => void;
+}) {
   const [draft, setDraft] = useState(row);
   const scores = useMemo(() => tab.key === 'elections' ? scoreElection(draft as Election, db) : [], [db, draft, tab.key]);
 
@@ -349,27 +516,52 @@ function Editor({ db, tab, row, onSave, onDelete }: { db: Database; tab: Tab; ro
       </div>
       <div className="form-grid">
         {tab.fields.map((field) => (
-          <FieldInput key={field.key} field={field} value={(draft as Record<string, unknown>)[field.key]} db={db} onChange={(value) => update(field.key, value)} />
+          <FieldInput
+            key={field.key}
+            field={field}
+            value={(draft as Record<string, unknown>)[field.key]}
+            db={db}
+            onCreateCandidate={onCreateCandidate}
+            onCreateIssue={onCreateIssue}
+            onChange={(value) => update(field.key, value)}
+          />
         ))}
       </div>
       {tab.key === 'elections' && (
-        <section className="scores">
-          <h4>Election scoring</h4>
-          <div className="score-grid">
-            {scores.map((score) => (
-              <div key={score.candidate.id}>
-                <strong>{candidateName(score.candidate)}</strong>
-                <span>{formatScore(score.score)} points</span>
-              </div>
-            ))}
-          </div>
-        </section>
+        <>
+          <section className="scores">
+            <h4>Election scoring</h4>
+            <div className="score-grid">
+              {scores.map((score) => (
+                <div key={score.candidate.id}>
+                  <strong>{candidateName(score.candidate)}</strong>
+                  <span>{formatScore(score.score)} points</span>
+                </div>
+              ))}
+            </div>
+          </section>
+          <ReportsView db={db} election={draft as Election} />
+        </>
       )}
     </form>
   );
 }
 
-function FieldInput({ field, value, db, onChange }: { field: Field; value: unknown; db: Database; onChange: (value: unknown) => void }) {
+function FieldInput({
+  field,
+  value,
+  db,
+  onCreateCandidate,
+  onCreateIssue,
+  onChange
+}: {
+  field: Field;
+  value: unknown;
+  db: Database;
+  onCreateCandidate: (name: string) => Promise<Id>;
+  onCreateIssue: (name: string) => Promise<Id>;
+  onChange: (value: unknown) => void;
+}) {
   const textValue = value === null || value === undefined ? '' : String(value);
   if (field.type === 'textarea') {
     return <label className="wide">{field.label}<textarea value={textValue} onChange={(event) => onChange(nullable(event.target.value, field))} /></label>;
@@ -390,45 +582,233 @@ function FieldInput({ field, value, db, onChange }: { field: Field; value: unkno
       </label>
     );
   }
-  if (field.type === 'multiselect' && field.entity) {
-    const selected = new Set(value as Id[] ?? []);
-    return (
-      <fieldset className="wide checklist">
-        <legend>{field.label}</legend>
-        {db[field.entity].map((row) => (
-          <label key={row.id}><input type="checkbox" checked={selected.has(row.id)} onChange={(event) => {
-            const ids = new Set(selected);
-            if (event.target.checked) ids.add(row.id); else ids.delete(row.id);
-            onChange([...ids]);
-          }} /> {recordName(field.entity!, row.id, db)}</label>
-        ))}
-      </fieldset>
-    );
+  if (field.type === 'electionCandidates') {
+    return <ElectionCandidateEditor candidates={db.candidates} value={value as Id[] ?? []} onCreateCandidate={onCreateCandidate} onChange={onChange} />;
   }
   if (field.type === 'electionIssues') {
-    return <ElectionIssueEditor issues={db.issues} value={value as ElectionIssue[] ?? []} onChange={onChange} />;
+    return <ElectionIssueEditor issues={db.issues} value={value as ElectionIssue[] ?? []} onCreateIssue={onCreateIssue} onChange={onChange} />;
   }
   return <label>{field.label}<input value={textValue} onChange={(event) => onChange(nullable(event.target.value, field))} /></label>;
 }
 
-function ElectionIssueEditor({ issues, value, onChange }: { issues: Issue[]; value: ElectionIssue[]; onChange: (value: ElectionIssue[]) => void }) {
-  const selected = new Set(value.map((item) => item.issueId));
+function ElectionCandidateEditor({
+  candidates,
+  value,
+  onCreateCandidate,
+  onChange
+}: {
+  candidates: Candidate[];
+  value: Id[];
+  onCreateCandidate: (name: string) => Promise<Id>;
+  onChange: (value: Id[]) => void;
+}) {
+  const [addOpen, setAddOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const included = candidates.filter((candidate) => value.includes(candidate.id));
+  const available = candidates.filter((candidate) => !value.includes(candidate.id));
+  const filtered = filterByName(available, candidateName, search);
+
+  async function addCandidate(name: string) {
+    const id = await onCreateCandidate(name);
+    onChange([...value, id]);
+    setSearch('');
+    setAddOpen(false);
+  }
+
   return (
-    <fieldset className="wide issue-weights">
-      <legend>Election-specific issue points</legend>
-      {issues.map((issue) => {
-        const item = value.find((row) => row.issueId === issue.id);
-        return (
-          <div key={issue.id}>
-            <label><input type="checkbox" checked={selected.has(issue.id)} onChange={(event) => {
-              onChange(event.target.checked ? [...value, { issueId: issue.id, points: issue.points ?? 0 }] : value.filter((row) => row.issueId !== issue.id));
-            }} /> {issueName(issue)}</label>
-            <input type="number" step="any" disabled={!item} value={item?.points ?? ''} onChange={(event) => onChange(value.map((row) => row.issueId === issue.id ? { ...row, points: Number(event.target.value) } : row))} />
+    <fieldset className="wide included-editor">
+      <legend>Candidates in this election</legend>
+      <div className="included-list">
+        {included.length === 0 && <p>No candidates selected.</p>}
+        {included.map((candidate) => (
+          <div className="included-row" key={candidate.id}>
+            <span>{candidateName(candidate)}</span>
+            <button type="button" aria-label={`Remove ${candidateName(candidate)}`} onClick={() => onChange(value.filter((id) => id !== candidate.id))}><X size={16} /></button>
           </div>
-        );
-      })}
+        ))}
+      </div>
+      <SearchAddPopover
+        buttonLabel="Add candidate"
+        createLabel="Create candidate"
+        isOpen={addOpen}
+        onOpenChange={setAddOpen}
+        search={search}
+        onSearchChange={setSearch}
+        placeholder="Search or type a candidate"
+        results={filtered}
+        getResultKey={(candidate) => candidate.id}
+        renderResult={(candidate) => candidateName(candidate)}
+        emptyText="No available candidates match."
+        onSelect={(candidate) => {
+          onChange([...value, candidate.id]);
+          setSearch('');
+          setAddOpen(false);
+        }}
+        onCreate={addCandidate}
+      />
     </fieldset>
   );
+}
+
+function ElectionIssueEditor({
+  issues,
+  value,
+  onCreateIssue,
+  onChange
+}: {
+  issues: Issue[];
+  value: ElectionIssue[];
+  onCreateIssue: (name: string) => Promise<Id>;
+  onChange: (value: ElectionIssue[]) => void;
+}) {
+  const [addOpen, setAddOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const included = value
+    .map((item) => ({ ...item, issue: issues.find((issue) => issue.id === item.issueId) ?? null }))
+    .filter((item) => item.issue !== null);
+  const selected = new Set(value.map((item) => item.issueId));
+  const available = issues.filter((issue) => !selected.has(issue.id));
+  const filtered = filterByName(available, issueName, search);
+
+  async function addIssue(name: string) {
+    const id = await onCreateIssue(name);
+    onChange([...value, { issueId: id, points: 0 }]);
+    setSearch('');
+    setAddOpen(false);
+  }
+
+  return (
+    <fieldset className="wide included-editor">
+      <legend>Election-specific issue points</legend>
+      <div className="included-list">
+        {included.length === 0 && <p>No issues selected.</p>}
+        {included.map((item) => (
+          <div className="included-row issue-row" key={item.issueId}>
+            <span>{issueName(item.issue)}</span>
+            <input type="number" step="any" value={item.points} onChange={(event) => onChange(value.map((row) => row.issueId === item.issueId ? { ...row, points: Number(event.target.value) } : row))} />
+            <button type="button" aria-label={`Remove ${issueName(item.issue)}`} onClick={() => onChange(value.filter((row) => row.issueId !== item.issueId))}><X size={16} /></button>
+          </div>
+        ))}
+      </div>
+      <SearchAddPopover
+        buttonLabel="Add issue"
+        createLabel="Create issue"
+        isOpen={addOpen}
+        onOpenChange={setAddOpen}
+        search={search}
+        onSearchChange={setSearch}
+        placeholder="Search or type an issue"
+        results={filtered}
+        getResultKey={(issue) => issue.id}
+        renderResult={(issue) => issueName(issue)}
+        renderMeta={(issue) => `${formatScore(issue.points ?? 0)} default points`}
+        emptyText="No available issues match."
+        onSelect={(issue) => {
+          onChange([...value, { issueId: issue.id, points: issue.points ?? 0 }]);
+          setSearch('');
+          setAddOpen(false);
+        }}
+        onCreate={addIssue}
+      />
+    </fieldset>
+  );
+}
+
+function SearchAddPopover<TItem>({
+  buttonLabel,
+  createLabel,
+  isOpen,
+  onOpenChange,
+  search,
+  onSearchChange,
+  placeholder,
+  results,
+  getResultKey,
+  renderResult,
+  renderMeta,
+  emptyText,
+  onSelect,
+  onCreate
+}: {
+  buttonLabel: string;
+  createLabel: string;
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
+  search: string;
+  onSearchChange: (value: string) => void;
+  placeholder: string;
+  results: TItem[];
+  getResultKey: (item: TItem) => Id;
+  renderResult: (item: TItem) => string;
+  renderMeta?: (item: TItem) => string;
+  emptyText: string;
+  onSelect: (item: TItem) => void;
+  onCreate: (name: string) => Promise<void>;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const createName = search.trim();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    searchRef.current?.focus();
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        onOpenChange(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onOpenChange(false);
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onOpenChange]);
+
+  return (
+    <div className="add-popover" ref={containerRef}>
+      <button type="button" className="add-trigger" aria-expanded={isOpen} onClick={() => onOpenChange(!isOpen)}>
+        <Plus size={16} /> {buttonLabel}
+      </button>
+      {isOpen && (
+        <div className="add-menu">
+          <input
+            ref={searchRef}
+            value={search}
+            placeholder={placeholder}
+            onChange={(event) => onSearchChange(event.target.value)}
+          />
+          <div className="add-options">
+            {results.length === 0 && <p>{emptyText}</p>}
+            {results.map((item) => (
+              <button type="button" key={getResultKey(item)} onClick={() => onSelect(item)}>
+                <span>{renderResult(item)}</span>
+                {renderMeta && <small>{renderMeta(item)}</small>}
+              </button>
+            ))}
+          </div>
+          <button type="button" className="create-option" disabled={!createName} onClick={() => onCreate(createName)}>
+            <Plus size={16} />
+            <span>{createName ? `${createLabel} "${createName}"` : createLabel}</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function filterByName<TItem>(items: TItem[], getName: (item: TItem) => string, search: string) {
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  if (!normalizedSearch) return items;
+  return items.filter((item) => getName(item).toLocaleLowerCase().includes(normalizedSearch));
 }
 
 function rowTitle(entity: EntityKey, row: Database[EntityKey][number], db: Database) {
@@ -440,18 +820,6 @@ function rowTitle(entity: EntityKey, row: Database[EntityKey][number], db: Datab
   if (entity === 'firstRecords') return (row as First).name || `First #${row.id}`;
   if (entity === 'stanceFacts') return `Link #${row.id}`;
   return `Record #${row.id}`;
-}
-
-function scoreElection(election: Election, db: Database) {
-  return election.candidateIds.map((candidateId) => {
-    const candidate = db.candidates.find((row) => row.id === candidateId)!;
-    const score = election.issues.reduce((total, electionIssue) => {
-      const stance = db.stances.find((row) => row.candidate === candidateId && row.issue === electionIssue.issueId);
-      const rating = stance?.rating ?? 0;
-      return total + electionIssue.points * (rating / 100);
-    }, 0);
-    return { candidate, score };
-  }).sort((a, b) => b.score - a.score);
 }
 
 function nullable(value: string, field: Field) {
