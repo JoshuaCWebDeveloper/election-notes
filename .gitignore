@@ -1,0 +1,10 @@
+node_modules
+dist
+.nx
+.vite
+coverage
+*.local
+
+# Local seed data derived from database exports.
+apps/election-notes/src/seed.ts
+apps/election-notes/src/seed.local.ts

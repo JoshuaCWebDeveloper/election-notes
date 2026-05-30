@@ -1,0 +1,37 @@
+{
+  "name": "election-notes",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/election-notes/src",
+  "projectType": "application",
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vite --host 0.0.0.0",
+        "cwd": "apps/election-notes"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vite build",
+        "cwd": "apps/election-notes"
+      },
+      "outputs": ["{workspaceRoot}/dist/apps/election-notes"]
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --project tsconfig.app.json --noEmit",
+        "cwd": "apps/election-notes"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run --passWithNoTests",
+        "cwd": "apps/election-notes"
+      }
+    }
+  }
+}
