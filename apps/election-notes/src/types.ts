@@ -69,8 +69,14 @@ export type Election = {
   name: string;
   date: string | null;
   description: string | null;
-  candidateIds: Id[];
   issues: ElectionIssue[];
+};
+
+export type Contest = {
+  id: Id;
+  electionId: Id;
+  name: string;
+  candidateIds: Id[];
 };
 
 export type Database = {
@@ -81,4 +87,5 @@ export type Database = {
   stanceFacts: StanceFact[];
   firstRecords: First[];
   elections: Election[];
+  contests: Contest[];
 };

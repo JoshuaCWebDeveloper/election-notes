@@ -10,11 +10,12 @@ export const storeNames: StoreName[] = [
   'facts',
   'stanceFacts',
   'firstRecords',
-  'elections'
+  'elections',
+  'contests'
 ];
 
 const databaseName = 'election-notes';
-const databaseVersion = 2;
+const databaseVersion = 3;
 const metadataStoreName = 'metadata';
 const legacyStorageKey = 'election-notes-db-v1';
 const initializedKey = 'initialized';
@@ -38,7 +39,7 @@ export function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(databaseName, databaseVersion);
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const db = request.result;
       for (const storeName of storeNames) {
         if (!db.objectStoreNames.contains(storeName)) {
@@ -48,12 +49,47 @@ export function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(metadataStoreName)) {
         db.createObjectStore(metadataStoreName, { keyPath: 'key' });
       }
+
+      if (event.oldVersion > 0 && event.oldVersion < 3) {
+        migrateLegacyElectionCandidates(request.transaction);
+      }
     };
 
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
     request.onblocked = () => reject(new Error('IndexedDB upgrade is blocked by another open Election Notes tab.'));
   });
+}
+
+function migrateLegacyElectionCandidates(transaction: IDBTransaction | null): void {
+  if (!transaction) return;
+  const elections = transaction.objectStore('elections');
+  const contests = transaction.objectStore('contests');
+  const request = elections.openCursor();
+  let nextContestId = 1;
+
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return;
+
+    const election = cursor.value as { id: Id; name?: string; candidateIds?: unknown; issues?: unknown };
+    const candidateIds = Array.isArray(election.candidateIds)
+      ? election.candidateIds.filter((id): id is Id => typeof id === 'number')
+      : [];
+
+    if (candidateIds.length > 0) {
+      contests.put({
+        id: nextContestId++,
+        electionId: election.id,
+        name: `${election.name || 'Election'} contest`,
+        candidateIds
+      });
+    }
+
+    const { candidateIds: _candidateIds, ...nextElection } = election;
+    cursor.update(nextElection);
+    cursor.continue();
+  };
 }
 
 export async function loadAllStores(): Promise<Database> {

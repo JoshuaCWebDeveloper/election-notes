@@ -507,7 +507,8 @@ textarea {
   gap: 0.45rem;
 }
 
-.included-list p {
+.included-list p,
+.contest-editor-list p {
   color: #667487;
   margin: 0;
 }
@@ -541,6 +542,31 @@ textarea {
 
 .issue-row {
   grid-template-columns: minmax(0, 1fr) 8rem auto;
+}
+
+.contest-editor-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.contest-editor {
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.7rem;
+}
+
+.contest-editor-heading {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.contest-editor-heading button {
+  aspect-ratio: 1;
+  padding: 0;
+  width: 2.35rem;
 }
 
 .add-popover {
@@ -646,6 +672,21 @@ textarea {
   display: grid;
   gap: 0.5rem;
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+
+.score-contest-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.score-contest {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.score-contest-grid p {
+  color: #667487;
+  margin: 0;
 }
 
 .score-grid div {

@@ -1,4 +1,4 @@
-import type { Candidate, Database, Election, Id, Issue, Stance } from '../types';
+import type { Candidate, Contest, Database, Election, Id, Issue, Stance } from '../types';
 
 export type ReportCollection = 'candidate' | 'issue' | 'stance';
 export type ReportPanelType = 'bar-chart' | 'ordered-bar-chart' | 'list' | 'candidate-contest';
@@ -35,7 +35,7 @@ export type ReportDatum = {
 };
 
 export type CandidateContestRow = {
-  election: Election | null;
+  contest: Contest | null;
   candidates: Array<{ candidate: Candidate; score: number }>;
 };
 
@@ -75,11 +75,11 @@ export const reportDashboards: ReportDashboard[] = [
   }
 ];
 
-export function getReportPanelData(panel: ReportPanel, db: Database, election?: Election | null): ReportDatum[] {
+export function getReportPanelData(panel: ReportPanel, db: Database, election?: Election | null, contest?: Contest | null): ReportDatum[] {
   if (!panel.collection || !panel.xAxis || !panel.yAxis) return [];
   const xAxis = panel.xAxis;
   const yAxis = panel.yAxis;
-  const rows = getCollectionRows(panel.collection, db, election).filter((row) => matchesFilter(row, panel.filter));
+  const rows = getCollectionRows(panel.collection, db, election, contest).filter((row) => matchesFilter(row, panel.filter));
   const sorted = [...rows].sort((left, right) => compareRows(left, right, panel.sortField, panel.sortOrder));
   return sorted.map((row) => ({
     id: row.id,
@@ -90,43 +90,70 @@ export function getReportPanelData(panel: ReportPanel, db: Database, election?: 
 }
 
 export function getCandidateContestRows(db: Database, election?: Election | null): CandidateContestRow[] {
-  if (election) return [{ election, candidates: scoreElection(election, db) }];
+  if (election) {
+    return getElectionContests(db, election.id).map((contest) => ({ contest, candidates: scoreContest(election, contest, db) }));
+  }
 
   if (db.elections.length === 0) {
     return [{
-      election: null,
+      contest: null,
       candidates: [...db.candidates]
         .sort((left, right) => (right.score ?? Number.NEGATIVE_INFINITY) - (left.score ?? Number.NEGATIVE_INFINITY))
         .map((candidate) => ({ candidate, score: candidate.score ?? 0 }))
     }];
   }
 
-  return db.elections.map((election) => ({ election, candidates: scoreElection(election, db) }));
+  return db.elections.flatMap((election) => getCandidateContestRows(db, election));
 }
 
 export function scoreElection(election: Election, db: Database): Array<{ candidate: Candidate; score: number }> {
-  return election.candidateIds
-    .map((candidateId) => {
-      const candidate = db.candidates.find((row) => row.id === candidateId);
-      if (!candidate) return null;
-      const score = election.issues.reduce((total, electionIssue) => {
-        const stance = db.stances.find((row) => row.candidate === candidateId && row.issue === electionIssue.issueId);
-        return total + electionIssue.points * ((stance?.rating ?? 0) / 100);
-      }, 0);
-      return { candidate, score };
-    })
+  return getElectionCandidateIds(db, election.id)
+    .map((candidateId) => scoreCandidate(candidateId, election, db))
     .filter((row): row is { candidate: Candidate; score: number } => row !== null)
     .sort((left, right) => right.score - left.score);
 }
 
-function getCollectionRows(collection: ReportCollection, db: Database, election?: Election | null): Array<Candidate | Issue | Stance> {
+export function scoreContest(election: Election, contest: Contest, db: Database): Array<{ candidate: Candidate; score: number }> {
+  return contest.candidateIds
+    .map((candidateId) => scoreCandidate(candidateId, election, db))
+    .filter((row): row is { candidate: Candidate; score: number } => row !== null)
+    .sort((left, right) => right.score - left.score);
+}
+
+function scoreCandidate(candidateId: Id, election: Election, db: Database): { candidate: Candidate; score: number } | null {
+  const candidate = db.candidates.find((row) => row.id === candidateId);
+  if (!candidate) return null;
+  const score = election.issues.reduce((total, electionIssue) => {
+    const stance = db.stances.find((row) => row.candidate === candidateId && row.issue === electionIssue.issueId);
+    return total + electionIssue.points * ((stance?.rating ?? 0) / 100);
+  }, 0);
+  return { candidate, score };
+}
+
+export function getElectionContests(db: Database, electionId: Id): Contest[] {
+  return db.contests.filter((contest) => contest.electionId === electionId);
+}
+
+function getElectionCandidateIds(db: Database, electionId: Id): Id[] {
+  return [...new Set(getElectionContests(db, electionId).flatMap((contest) => contest.candidateIds))];
+}
+
+export function getElectionCandidateCount(db: Database, electionId: Id): number {
+  return getElectionCandidateIds(db, electionId).length;
+}
+
+export function getElectionContestCount(db: Database, electionId: Id): number {
+  return getElectionContests(db, electionId).length;
+}
+
+function getCollectionRows(collection: ReportCollection, db: Database, election?: Election | null, contest?: Contest | null): Array<Candidate | Issue | Stance> {
   if (!election) {
     if (collection === 'candidate') return db.candidates;
     if (collection === 'issue') return db.issues;
     return db.stances;
   }
 
-  const candidateIds = new Set(election.candidateIds);
+  const candidateIds = new Set(contest ? contest.candidateIds : getElectionCandidateIds(db, election.id));
   const issueIds = new Set(election.issues.map((issue) => issue.issueId));
   if (collection === 'candidate') return db.candidates.filter((candidate) => candidateIds.has(candidate.id));
   if (collection === 'issue') return db.issues.filter((issue) => issueIds.has(issue.id));

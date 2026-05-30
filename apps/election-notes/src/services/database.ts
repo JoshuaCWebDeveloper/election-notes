@@ -14,7 +14,7 @@ import {
   storeNames,
   type StoreName
 } from '../repositories/indexedDb';
-import type { Database, Id } from '../types';
+import type { Contest, Database, Id } from '../types';
 
 export type EntityKey = StoreName;
 
@@ -79,8 +79,13 @@ const rowShape: Record<EntityKey, Record<string, ValidationRule>> = {
     name: 'requiredString',
     date: 'string',
     description: 'string',
-    candidateIds: 'idArray',
     issues: 'electionIssues'
+  },
+  contests: {
+    id: 'requiredNumber',
+    electionId: 'requiredNumber',
+    name: 'requiredString',
+    candidateIds: 'idArray'
   }
 };
 
@@ -93,7 +98,7 @@ export async function loadDatabase(): Promise<Database> {
   }
 
   const legacy = readLegacyLocalStorage();
-  const initial = legacy ?? cloneSeedData();
+  const initial = normalizeDatabase(legacy ?? cloneSeedData());
   await replaceAllStores(initial);
   if (legacy) removeLegacyLocalStorage();
   return loadAllStores();
@@ -108,7 +113,7 @@ export async function deleteEntity(storeName: EntityKey, id: Id): Promise<void> 
 }
 
 export async function resetDatabase(): Promise<Database> {
-  const data = cloneSeedData();
+  const data = normalizeDatabase(cloneSeedData());
   await replaceAllStores(data);
   removeLegacyLocalStorage();
   return loadAllStores();
@@ -119,7 +124,7 @@ export function canRestoreSeedData(): boolean {
 }
 
 export async function restoreDatabaseFromSeed(): Promise<Database> {
-  const data = cloneSeedData();
+  const data = normalizeDatabase(cloneSeedData());
   validateDatabase(data);
   await replaceAllStores(data);
   removeLegacyLocalStorage();
@@ -150,14 +155,19 @@ export function validateDatabase(value: unknown): Database {
     throw new Error('Backup must be a JSON object.');
   }
 
+  const normalized = normalizeDatabase(value);
   const topLevelKeys = Object.keys(value).sort();
   const expectedKeys = [...storeNames].sort();
-  if (topLevelKeys.length !== expectedKeys.length || topLevelKeys.some((key, index) => key !== expectedKeys[index])) {
+  const isCurrentBackup = topLevelKeys.length === expectedKeys.length && topLevelKeys.every((key, index) => key === expectedKeys[index]);
+  const isLegacyBackup = topLevelKeys.length === expectedKeys.length - 1 &&
+    !topLevelKeys.includes('contests') &&
+    expectedKeys.filter((key) => key !== 'contests').every((key) => topLevelKeys.includes(key));
+  if (!isCurrentBackup && !isLegacyBackup) {
     throw new Error(`Backup must contain exactly these stores: ${storeNames.join(', ')}.`);
   }
 
   for (const storeName of storeNames) {
-    const rows = value[storeName];
+    const rows = normalized[storeName];
     if (!Array.isArray(rows)) {
       throw new Error(`Store "${storeName}" must be an array.`);
     }
@@ -165,7 +175,44 @@ export function validateDatabase(value: unknown): Database {
     rows.forEach((row, index) => validateRow(storeName, row, index));
   }
 
-  return structuredClone(value) as Database;
+  return structuredClone(normalized);
+}
+
+export function normalizeDatabase(value: unknown): Database {
+  if (!isRecord(value)) throw new Error('Backup must be a JSON object.');
+
+  const contests: Contest[] = Array.isArray(value.contests) ? structuredClone(value.contests as Contest[]) : [];
+  const elections = Array.isArray(value.elections)
+    ? (value.elections as Array<Record<string, unknown>>).map((election) => {
+      const { candidateIds, ...nextElection } = election;
+      const electionId = Number(election.id);
+      const hasContestForElection = contests.some((contest) => contest.electionId === electionId);
+      if (!hasContestForElection && Array.isArray(candidateIds) && candidateIds.some((id) => typeof id === 'number')) {
+        contests.push({
+          id: nextId(contests),
+          electionId,
+          name: `${typeof election.name === 'string' ? election.name : 'Election'} contest`,
+          candidateIds: candidateIds.filter((id): id is Id => typeof id === 'number')
+        });
+      }
+      return nextElection;
+    })
+    : value.elections;
+
+  return {
+    candidates: structuredClone(value.candidates),
+    issues: structuredClone(value.issues),
+    stances: structuredClone(value.stances),
+    facts: structuredClone(value.facts),
+    stanceFacts: structuredClone(value.stanceFacts),
+    firstRecords: structuredClone(value.firstRecords),
+    elections: structuredClone(elections),
+    contests
+  } as Database;
+}
+
+function nextId(rows: { id: Id }[]) {
+  return Math.max(0, ...rows.map((row) => row.id)) + 1;
 }
 
 function validateRow(storeName: EntityKey, value: unknown, index: number): void {

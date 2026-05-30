@@ -103,7 +103,6 @@ export const seedData: Database = {
       name: 'Example Local Election',
       date: '2024-11-05',
       description: 'Dummy election showing candidate membership and election-specific issue points.',
-      candidateIds: [1, 2],
       issues: [
         {
           issueId: 1,
@@ -114,6 +113,14 @@ export const seedData: Database = {
           points: 75
         }
       ]
+    }
+  ],
+  contests: [
+    {
+      id: 1,
+      electionId: 1,
+      name: 'Example Local Election contest',
+      candidateIds: [1, 2]
     }
   ]
 };

@@ -1,4 +1,4 @@
-import type { Candidate, Database, Election, Id, Issue } from '../types';
+import type { Candidate, Contest, Database, Election, Id, Issue } from '../types';
 
 export function nextId(rows: { id: Id }[]) {
   return Math.max(0, ...rows.map((row) => row.id)) + 1;
@@ -13,6 +13,16 @@ export function duplicateElection(election: Election, db: Database): Election {
     date: copiedDate,
     description: election.description ? `Copied from ${election.name}.\n\n${election.description}` : `Copied from ${election.name}.`
   };
+}
+
+export function duplicateElectionContests(sourceElectionId: Id, targetElectionId: Id, db: Database): Contest[] {
+  const sourceContests = db.contests.filter((contest) => contest.electionId === sourceElectionId);
+  let nextContestId = nextId(db.contests);
+  return sourceContests.map((contest) => ({
+    ...structuredClone(contest),
+    id: nextContestId++,
+    electionId: targetElectionId
+  }));
 }
 
 export function candidateFromInlineName(name: string, db: Database): Candidate {
@@ -38,6 +48,15 @@ export function issueFromInlineName(name: string, db: Database): Issue {
     points: 0,
     confidence: null,
     stancesCount: null
+  };
+}
+
+export function contestFromInlineName(name: string, electionId: Id, db: Database): Contest {
+  return {
+    id: nextId(db.contests),
+    electionId,
+    name: name.trim() || 'New contest',
+    candidateIds: []
   };
 }
 

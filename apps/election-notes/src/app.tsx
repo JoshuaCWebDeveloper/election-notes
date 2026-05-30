@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Copy, Download, Plus, RotateCcw, Save, Trash2, Upload, X } from 'lucide-react';
 import { canRestoreSeedData, createBackupJson, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
-import { candidateFromInlineName, duplicateElection, issueFromInlineName, nextId } from './services/elections';
-import { getCandidateContestRows, getReportPanelData, reportDashboards, scoreElection, type ReportDatum, type ReportPanel } from './services/reports';
-import type { Candidate, Database, Election, ElectionIssue, Fact, First, Id, Issue, Stance, StanceFact } from './types';
+import { candidateFromInlineName, contestFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
+import { getCandidateContestRows, getElectionCandidateCount, getElectionContestCount, getElectionContests, getReportPanelData, reportDashboards, type ReportDatum, type ReportPanel } from './services/reports';
+import type { Candidate, Contest, Database, Election, ElectionIssue, Fact, First, Id, Issue, Stance, StanceFact } from './types';
 
 type Tab = {
   key: EntityKey;
@@ -16,7 +16,7 @@ type Tab = {
 type Field = {
   key: string;
   label: string;
-  type: 'text' | 'textarea' | 'number' | 'date' | 'select' | 'electionCandidates' | 'electionIssues';
+  type: 'text' | 'textarea' | 'number' | 'date' | 'select' | 'electionContests' | 'electionIssues';
   entity?: EntityKey;
   nullable?: boolean;
 };
@@ -54,14 +54,14 @@ const tabs: Tab[] = [
     label: 'Elections',
     summary: (row, db) => {
       const election = row as Election;
-      return `${election.candidateIds.length} candidates, ${election.issues.length} weighted issues, top score ${formatScore(scoreElection(election, db)[0]?.score)}`;
+      return `${getElectionContestCount(db, election.id)} contests, ${getElectionCandidateCount(db, election.id)} candidates, ${election.issues.length} weighted issues`;
     },
-    blank: (db) => ({ id: nextId(db.elections), name: 'New election', date: null, description: null, candidateIds: [], issues: [] }),
+    blank: (db) => ({ id: nextId(db.elections), name: 'New election', date: null, description: null, issues: [] }),
     fields: [
       { key: 'name', label: 'Name', type: 'text' },
       { key: 'date', label: 'Date', type: 'date', nullable: true },
       { key: 'description', label: 'Description', type: 'textarea', nullable: true },
-      { key: 'candidateIds', label: 'Candidates', type: 'electionCandidates', entity: 'candidates' },
+      { key: 'contests', label: 'Contests', type: 'electionContests', entity: 'candidates' },
       { key: 'issues', label: 'Election issue weights', type: 'electionIssues', entity: 'issues' }
     ]
   },
@@ -191,14 +191,28 @@ export function App() {
   async function saveToStore<TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number]) {
     if (!db) return;
     await saveEntity(storeName, row);
-    setDb((current) => current ? { ...current, [storeName]: [...current[storeName], row] } : current);
+    setDb((current) => {
+      if (!current) return current;
+      const nextRows = current[storeName].some((item) => item.id === row.id)
+        ? current[storeName].map((item) => item.id === row.id ? row : item)
+        : [...current[storeName], row];
+      return { ...current, [storeName]: nextRows };
+    });
+  }
+
+  async function deleteFromStore<TStore extends EntityKey>(storeName: TStore, id: Id) {
+    if (!db) return;
+    await deleteEntity(storeName, id);
+    setDb((current) => current ? { ...current, [storeName]: current[storeName].filter((item) => item.id !== id) } : current);
   }
 
   async function duplicateSelectedElection() {
     if (!db || active.key !== 'elections') return;
     const copy = duplicateElection(selected as Election, db);
     await saveEntity('elections', copy);
-    setDb({ ...db, elections: [...db.elections, copy] });
+    const contests = duplicateElectionContests((selected as Election).id, copy.id, db);
+    await Promise.all(contests.map((contest) => saveEntity('contests', contest)));
+    setDb({ ...db, elections: [...db.elections, copy], contests: [...db.contests, ...contests] });
     setSelectedId(copy.id);
   }
 
@@ -206,7 +220,13 @@ export function App() {
     if (!db) return;
     const nextRows = rows.filter((row) => row.id !== id);
     await deleteEntity(active.key, id);
-    setDb({ ...db, [active.key]: nextRows });
+    if (active.key === 'elections') {
+      const contestIds = db.contests.filter((contest) => contest.electionId === id).map((contest) => contest.id);
+      await Promise.all(contestIds.map((contestId) => deleteEntity('contests', contestId)));
+      setDb({ ...db, elections: nextRows as Election[], contests: db.contests.filter((contest) => contest.electionId !== id) });
+    } else {
+      setDb({ ...db, [active.key]: nextRows });
+    }
     setSelectedId(nextRows[0]?.id ?? 0);
   }
 
@@ -350,6 +370,13 @@ export function App() {
               await saveToStore('issues', issue);
               return issue.id;
             }}
+            onCreateContest={async (name, electionId) => {
+              const contest = contestFromInlineName(name, electionId, db);
+              await saveToStore('contests', contest);
+              return contest;
+            }}
+            onSaveContest={(contest) => saveToStore('contests', contest)}
+            onDeleteContest={(id) => deleteFromStore('contests', id)}
             onSave={save}
             onDelete={remove}
           />
@@ -390,10 +417,10 @@ function ReportPanelView({ db, election, panel }: { db: Database; election: Elec
       <article className="report-panel wide-panel">
         <h4>{panel.name}</h4>
         <div className="contest-grid">
-          {getCandidateContestRows(db, election).map((contest) => (
-            <div key={contest.election?.id ?? 'legacy'}>
-              <strong>{contest.election?.name ?? 'Legacy candidate scores'}</strong>
-              {contest.candidates.slice(0, 6).map((row, index) => (
+          {getCandidateContestRows(db, election).map((contestRow) => (
+            <div key={contestRow.contest?.id ?? 'legacy'}>
+              <strong>{contestRow.contest?.name ?? 'Legacy candidate scores'}</strong>
+              {contestRow.candidates.slice(0, 6).map((row, index) => (
                 <div className="contest-row" key={row.candidate.id}>
                   <span>{index + 1}. {candidateName(row.candidate)}</span>
                   <b>{formatScore(row.score)}</b>
@@ -403,6 +430,26 @@ function ReportPanelView({ db, election, panel }: { db: Database; election: Elec
           ))}
         </div>
       </article>
+    );
+  }
+
+  if (panel.collection === 'candidate') {
+    const contests = getElectionContests(db, election.id);
+    return (
+      <>
+        {contests.length === 0 && (
+          <article className="report-panel">
+            <h4>{panel.name}</h4>
+            <p className="empty-report">No contests created.</p>
+          </article>
+        )}
+        {contests.map((contest) => (
+          <article className="report-panel" key={contest.id}>
+            <h4>{panel.name}: {contest.name}</h4>
+            <BarChart data={getReportPanelData(panel, db, election, contest)} horizontal={panel.horizontal === true} />
+          </article>
+        ))}
+      </>
     );
   }
 
@@ -484,6 +531,9 @@ function Editor({
   row,
   onCreateCandidate,
   onCreateIssue,
+  onCreateContest,
+  onSaveContest,
+  onDeleteContest,
   onSave,
   onDelete
 }: {
@@ -492,11 +542,14 @@ function Editor({
   row: Database[EntityKey][number];
   onCreateCandidate: (name: string) => Promise<Id>;
   onCreateIssue: (name: string) => Promise<Id>;
+  onCreateContest: (name: string, electionId: Id) => Promise<Contest>;
+  onSaveContest: (contest: Contest) => void;
+  onDeleteContest: (id: Id) => void;
   onSave: (row: Database[EntityKey][number]) => void;
   onDelete: (id: Id) => void;
 }) {
   const [draft, setDraft] = useState(row);
-  const scores = useMemo(() => tab.key === 'elections' ? scoreElection(draft as Election, db) : [], [db, draft, tab.key]);
+  const contestScores = useMemo(() => tab.key === 'elections' ? getCandidateContestRows(db, draft as Election) : [], [db, draft, tab.key]);
 
   function update(key: string, value: unknown) {
     setDraft((current) => ({ ...current, [key]: value }) as typeof row);
@@ -521,8 +574,12 @@ function Editor({
             field={field}
             value={(draft as Record<string, unknown>)[field.key]}
             db={db}
+            electionId={tab.key === 'elections' ? draft.id : null}
             onCreateCandidate={onCreateCandidate}
             onCreateIssue={onCreateIssue}
+            onCreateContest={onCreateContest}
+            onSaveContest={onSaveContest}
+            onDeleteContest={onDeleteContest}
             onChange={(value) => update(field.key, value)}
           />
         ))}
@@ -531,11 +588,19 @@ function Editor({
         <>
           <section className="scores">
             <h4>Election scoring</h4>
-            <div className="score-grid">
-              {scores.map((score) => (
-                <div key={score.candidate.id}>
-                  <strong>{candidateName(score.candidate)}</strong>
-                  <span>{formatScore(score.score)} points</span>
+            <div className="score-contest-grid">
+              {contestScores.length === 0 && <p>No contests created.</p>}
+              {contestScores.map((contestScore) => (
+                <div className="score-contest" key={contestScore.contest?.id ?? 'legacy'}>
+                  <strong>{contestScore.contest?.name ?? 'Legacy candidate scores'}</strong>
+                  <div className="score-grid">
+                    {contestScore.candidates.map((score) => (
+                      <div key={score.candidate.id}>
+                        <strong>{candidateName(score.candidate)}</strong>
+                        <span>{formatScore(score.score)} points</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -551,15 +616,23 @@ function FieldInput({
   field,
   value,
   db,
+  electionId,
   onCreateCandidate,
   onCreateIssue,
+  onCreateContest,
+  onSaveContest,
+  onDeleteContest,
   onChange
 }: {
   field: Field;
   value: unknown;
   db: Database;
+  electionId: Id | null;
   onCreateCandidate: (name: string) => Promise<Id>;
   onCreateIssue: (name: string) => Promise<Id>;
+  onCreateContest: (name: string, electionId: Id) => Promise<Contest>;
+  onSaveContest: (contest: Contest) => void;
+  onDeleteContest: (id: Id) => void;
   onChange: (value: unknown) => void;
 }) {
   const textValue = value === null || value === undefined ? '' : String(value);
@@ -582,8 +655,18 @@ function FieldInput({
       </label>
     );
   }
-  if (field.type === 'electionCandidates') {
-    return <ElectionCandidateEditor candidates={db.candidates} value={value as Id[] ?? []} onCreateCandidate={onCreateCandidate} onChange={onChange} />;
+  if (field.type === 'electionContests' && electionId !== null) {
+    return (
+      <ElectionContestEditor
+        candidates={db.candidates}
+        contests={db.contests.filter((contest) => contest.electionId === electionId)}
+        electionId={electionId}
+        onCreateCandidate={onCreateCandidate}
+        onCreateContest={onCreateContest}
+        onSaveContest={onSaveContest}
+        onDeleteContest={onDeleteContest}
+      />
+    );
   }
   if (field.type === 'electionIssues') {
     return <ElectionIssueEditor issues={db.issues} value={value as ElectionIssue[] ?? []} onCreateIssue={onCreateIssue} onChange={onChange} />;
@@ -591,39 +674,126 @@ function FieldInput({
   return <label>{field.label}<input value={textValue} onChange={(event) => onChange(nullable(event.target.value, field))} /></label>;
 }
 
-function ElectionCandidateEditor({
+function ElectionContestEditor({
   candidates,
-  value,
+  contests,
+  electionId,
   onCreateCandidate,
-  onChange
+  onCreateContest,
+  onSaveContest,
+  onDeleteContest
 }: {
   candidates: Candidate[];
-  value: Id[];
+  contests: Contest[];
+  electionId: Id;
   onCreateCandidate: (name: string) => Promise<Id>;
-  onChange: (value: Id[]) => void;
+  onCreateContest: (name: string, electionId: Id) => Promise<Contest>;
+  onSaveContest: (contest: Contest) => void;
+  onDeleteContest: (id: Id) => void;
 }) {
   const [addOpen, setAddOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const included = candidates.filter((candidate) => value.includes(candidate.id));
-  const available = candidates.filter((candidate) => !value.includes(candidate.id));
-  const filtered = filterByName(available, candidateName, search);
+  const filteredContests = filterByName(contests, (contest) => contest.name, search);
 
-  async function addCandidate(name: string) {
-    const id = await onCreateCandidate(name);
-    onChange([...value, id]);
+  async function addContest(name: string) {
+    await onCreateContest(name, electionId);
     setSearch('');
     setAddOpen(false);
   }
 
   return (
     <fieldset className="wide included-editor">
-      <legend>Candidates in this election</legend>
+      <legend>Contests in this election</legend>
+      <div className="contest-editor-list">
+        {contests.length === 0 && <p>No contests created.</p>}
+        {contests.map((contest) => (
+          <ContestEditor
+            candidates={candidates}
+            contest={contest}
+            key={contest.id}
+            onCreateCandidate={onCreateCandidate}
+            onSaveContest={onSaveContest}
+            onDeleteContest={onDeleteContest}
+          />
+        ))}
+      </div>
+      <SearchAddPopover
+        buttonLabel="Add contest"
+        createLabel="Create contest"
+        isOpen={addOpen}
+        onOpenChange={setAddOpen}
+        search={search}
+        onSearchChange={setSearch}
+        placeholder="Search or type a contest"
+        results={filteredContests}
+        getResultKey={(contest) => contest.id}
+        renderResult={(contest) => contest.name}
+        renderMeta={(contest) => `${contest.candidateIds.length} candidates`}
+        emptyText="No contests match."
+        onSelect={(contest) => {
+          const name = window.prompt('Rename contest', contest.name);
+          if (name?.trim()) onSaveContest({ ...contest, name: name.trim() });
+          setSearch('');
+          setAddOpen(false);
+        }}
+        onCreate={addContest}
+      />
+    </fieldset>
+  );
+}
+
+function ContestEditor({
+  candidates,
+  contest,
+  onCreateCandidate,
+  onSaveContest,
+  onDeleteContest
+}: {
+  candidates: Candidate[];
+  contest: Contest;
+  onCreateCandidate: (name: string) => Promise<Id>;
+  onSaveContest: (contest: Contest) => void;
+  onDeleteContest: (id: Id) => void;
+}) {
+  const [draft, setDraft] = useState(contest);
+  const [addOpen, setAddOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const included = candidates.filter((candidate) => draft.candidateIds.includes(candidate.id));
+  const available = candidates.filter((candidate) => !draft.candidateIds.includes(candidate.id));
+  const filtered = filterByName(available, candidateName, search);
+
+  useEffect(() => {
+    setDraft(contest);
+  }, [contest]);
+
+  function updateContest(nextContest: Contest) {
+    setDraft(nextContest);
+    onSaveContest(nextContest);
+  }
+
+  async function addCandidate(name: string) {
+    const id = await onCreateCandidate(name);
+    updateContest({ ...draft, candidateIds: [...draft.candidateIds, id] });
+    setSearch('');
+    setAddOpen(false);
+  }
+
+  return (
+    <section className="contest-editor">
+      <div className="contest-editor-heading">
+        <input
+          aria-label="Contest name"
+          value={draft.name}
+          onChange={(event) => updateContest({ ...draft, name: event.target.value })}
+        />
+        <button type="button" className="danger" aria-label={`Delete ${draft.name}`} onClick={() => onDeleteContest(draft.id)}><Trash2 size={16} /></button>
+      </div>
       <div className="included-list">
         {included.length === 0 && <p>No candidates selected.</p>}
         {included.map((candidate) => (
           <div className="included-row" key={candidate.id}>
             <span>{candidateName(candidate)}</span>
-            <button type="button" aria-label={`Remove ${candidateName(candidate)}`} onClick={() => onChange(value.filter((id) => id !== candidate.id))}><X size={16} /></button>
+            <button type="button" aria-label={`Remove ${candidateName(candidate)}`} onClick={() => updateContest({ ...draft, candidateIds: draft.candidateIds.filter((id) => id !== candidate.id) })}><X size={16} /></button>
           </div>
         ))}
       </div>
@@ -640,13 +810,13 @@ function ElectionCandidateEditor({
         renderResult={(candidate) => candidateName(candidate)}
         emptyText="No available candidates match."
         onSelect={(candidate) => {
-          onChange([...value, candidate.id]);
+          updateContest({ ...draft, candidateIds: [...draft.candidateIds, candidate.id] });
           setSearch('');
           setAddOpen(false);
         }}
         onCreate={addCandidate}
       />
-    </fieldset>
+    </section>
   );
 }
 
