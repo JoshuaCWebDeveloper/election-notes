@@ -14,7 +14,7 @@ export const storeNames: StoreName[] = [
 ];
 
 const databaseName = 'election-notes';
-const databaseVersion = 1;
+const databaseVersion = 2;
 const metadataStoreName = 'metadata';
 const legacyStorageKey = 'election-notes-db-v1';
 const initializedKey = 'initialized';
@@ -52,6 +52,7 @@ export function openDatabase(): Promise<IDBDatabase> {
 
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
+    request.onblocked = () => reject(new Error('IndexedDB upgrade is blocked by another open Election Notes tab.'));
   });
 }
 

@@ -1,11 +1,119 @@
 import type { Database } from './types';
 
 export const seedData: Database = {
-  candidates: [],
-  issues: [],
-  stances: [],
-  facts: [],
-  stanceFacts: [],
-  firstRecords: [],
-  elections: []
+  candidates: [
+    {
+      id: 1,
+      firstName: 'Alex',
+      middleName: null,
+      lastName: 'Example',
+      score: 72,
+      confidence: 80,
+      stancesCount: 1,
+      confidenceScoreProduct: 5760
+    },
+    {
+      id: 2,
+      firstName: 'Jordan',
+      middleName: 'Q',
+      lastName: 'Sample',
+      score: 64,
+      confidence: 65,
+      stancesCount: 1,
+      confidenceScoreProduct: 4160
+    }
+  ],
+  issues: [
+    {
+      id: 1,
+      name: 'Example Infrastructure',
+      description: 'Dummy issue for local development seeds.',
+      points: 100,
+      confidence: 75,
+      stancesCount: 2
+    },
+    {
+      id: 2,
+      name: 'Example Education',
+      description: 'Second dummy issue with a different election weight.',
+      points: 50,
+      confidence: 60,
+      stancesCount: 0
+    }
+  ],
+  stances: [
+    {
+      id: 1,
+      date_created: '2024-01-01T12:00:00.000Z',
+      date_updated: null,
+      title: 'Mostly aligned',
+      candidate: 1,
+      issue: 1,
+      rating: 80,
+      points: 80,
+      confidence: 75,
+      label: 'Alex Example - Example Infrastructure: Mostly aligned',
+      description: 'Dummy stance showing a candidate-to-issue relationship.'
+    },
+    {
+      id: 2,
+      date_created: '2024-01-02T12:00:00.000Z',
+      date_updated: null,
+      title: 'Partially aligned',
+      candidate: 2,
+      issue: 1,
+      rating: 55,
+      points: 55,
+      confidence: 60,
+      label: 'Jordan Sample - Example Infrastructure: Partially aligned',
+      description: 'Another dummy stance for comparison.'
+    }
+  ],
+  facts: [
+    {
+      id: 1,
+      date_created: '2024-01-03T12:00:00.000Z',
+      date_updated: null,
+      Summary: 'Dummy source note',
+      description: 'A markdown-capable note can include **formatting** and links.'
+    }
+  ],
+  stanceFacts: [
+    {
+      id: 1,
+      stance: 1,
+      fact: 1
+    }
+  ],
+  firstRecords: [
+    {
+      id: 1,
+      status: 'draft',
+      sort: 1,
+      user_created: null,
+      date_created: '2024-01-04T12:00:00.000Z',
+      user_updated: null,
+      date_updated: null,
+      name: 'Example first record'
+    }
+  ],
+  elections: [
+    {
+      id: 1,
+      name: 'Example Local Election',
+      date: '2024-11-05',
+      description: 'Dummy election showing candidate membership and election-specific issue points.',
+      candidateIds: [1, 2],
+      issues: [
+        {
+          issueId: 1,
+          points: 125
+        },
+        {
+          issueId: 2,
+          points: 75
+        }
+      ]
+    }
+  ]
 };
