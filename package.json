@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "nx": "nx",
+    "start": "nx serve election-notes",
     "dev": "nx serve election-notes",
     "build": "nx build election-notes",
     "lint": "nx lint election-notes",
