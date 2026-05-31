@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, Copy, Download, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { canRestoreSeedData, createBackupJson, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
 import { candidateFromInlineName, contestFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
 import { averageIssueConfidence, countIssueStances, getCandidateContestRows, getElectionCandidateCount, getElectionContestCount, getElectionContests, getReportPanelData, reportDashboards, type ReportDatum, type ReportPanel } from './services/reports';
@@ -34,6 +35,16 @@ function useDebouncedAutoSave<T>(value: T, onSave: (value: T) => void | Promise<
   const pending = useRef(false);
   const timerRef = useRef<number | null>(null);
 
+  function flush() {
+    if (!pending.current) return;
+    pending.current = false;
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    void latestSave.current(latestValue.current);
+  }
+
   useEffect(() => {
     latestSave.current = onSave;
   }, [onSave]);
@@ -63,14 +74,22 @@ function useDebouncedAutoSave<T>(value: T, onSave: (value: T) => void | Promise<
     };
   }, [delay, value]);
 
-  useEffect(() => () => {
-    if (pending.current) {
-      pending.current = false;
-      void latestSave.current(latestValue.current);
+  useEffect(() => {
+    function flushWhenHidden() {
+      if (document.visibilityState === 'hidden') flush();
     }
+
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', flushWhenHidden);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', flushWhenHidden);
+      flush();
+    };
   }, []);
 
   return {
+    flush,
     cancel() {
       pending.current = false;
       if (timerRef.current !== null) {
@@ -248,13 +267,68 @@ const tabs: Tab[] = [
   }
 ];
 
+type RouteState = {
+  tabKey: EntityKey;
+  selectedId: Id | null;
+  expandedCandidateId: Id | null;
+  expandedStanceId: Id | null;
+  isKnownPath: boolean;
+};
+
+const tabPathByKey: Partial<Record<EntityKey, string>> = {
+  elections: 'elections',
+  candidates: 'candidates',
+  issues: 'issues',
+  stances: 'stances',
+  facts: 'facts',
+  stanceFacts: 'stance-fact-links',
+  firstRecords: 'first-records'
+};
+
+function parseRoute(pathname: string): RouteState {
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length === 0) {
+    return { tabKey: 'elections', selectedId: null, expandedCandidateId: null, expandedStanceId: null, isKnownPath: true };
+  }
+
+  const tab = tabs.find((item) => tabPathByKey[item.key] === segments[0]);
+  if (!tab) {
+    return { tabKey: 'elections', selectedId: null, expandedCandidateId: null, expandedStanceId: null, isKnownPath: false };
+  }
+
+  return {
+    tabKey: tab.key,
+    selectedId: parseIdSegment(segments[1]),
+    expandedCandidateId: tab.key === 'elections' && segments[2] === 'candidates' ? parseIdSegment(segments[3]) : null,
+    expandedStanceId: tab.key === 'elections' && segments[2] === 'candidates' && segments[4] === 'stances' ? parseIdSegment(segments[5]) : null,
+    isKnownPath: true
+  };
+}
+
+function pathForSelection(tabKey: EntityKey, selectedId: Id | null, expandedCandidateId: Id | null = null, expandedStanceId: Id | null = null) {
+  const base = `/${tabPathByKey[tabKey] ?? 'elections'}`;
+  if (selectedId === null) return base;
+  if (tabKey !== 'elections' || expandedCandidateId === null) return `${base}/${selectedId}`;
+  const candidatePath = `${base}/${selectedId}/candidates/${expandedCandidateId}`;
+  return expandedStanceId === null ? candidatePath : `${candidatePath}/stances/${expandedStanceId}`;
+}
+
+function parseIdSegment(segment: string | undefined) {
+  if (segment === undefined) return null;
+  const id = Number(segment);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
 export function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [db, setDb] = useState<Database | null>(null);
-  const [activeKey, setActiveKey] = useState<EntityKey>('elections');
+  const route = useMemo(() => parseRoute(location.pathname), [location.pathname]);
+  const activeKey = route.tabKey;
   const active = tabs.find((tab) => tab.key === activeKey)!;
   const rows = db?.[active.key] ?? [];
   const visibleRows = useMemo(() => db ? sortRowsForTab(rows, active.key, db) : rows, [active.key, db, rows]);
-  const [selectedId, setSelectedId] = useState<Id>(visibleRows[0]?.id ?? 0);
+  const selectedId = route.selectedId ?? visibleRows[0]?.id ?? 0;
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoreUseSeed, setRestoreUseSeed] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
@@ -268,7 +342,6 @@ export function App() {
     loadDatabase().then((data) => {
       if (cancelled) return;
       setDb(data);
-      setSelectedId(sortRowsForTab(data[activeKey], activeKey, data)[0]?.id ?? 0);
     }).catch((error: unknown) => {
       console.error('Failed to load IndexedDB database', error);
     });
@@ -276,6 +349,41 @@ export function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!db) return;
+    const tabRows = sortRowsForTab(db[active.key], active.key, db);
+    const hasSelectedRoute = route.selectedId !== null && tabRows.some((row) => row.id === route.selectedId);
+    if (!route.isKnownPath || !hasSelectedRoute) {
+      navigate(pathForSelection(active.key, tabRows[0]?.id ?? null), { replace: true });
+      return;
+    }
+    if (active.key === 'elections' && route.selectedId !== null) {
+      const election = tabRows.find((row) => row.id === route.selectedId) as Election | undefined;
+      if (!election) return;
+      const candidateIds = new Set(getCandidateContestRows(db, election).flatMap((contestScore) => contestScore.candidates.map((score) => score.candidate.id)));
+      if (route.expandedCandidateId !== null && !candidateIds.has(route.expandedCandidateId)) {
+        navigate(pathForSelection('elections', route.selectedId), { replace: true });
+        return;
+      }
+      const stance = route.expandedStanceId === null ? null : db.stances.find((item) => item.id === route.expandedStanceId) ?? null;
+      if (
+        route.expandedCandidateId !== null &&
+        route.expandedStanceId !== null &&
+        (stance === null || stance.candidate !== route.expandedCandidateId || !election.issues.some((issue) => issue.issueId === stance.issue))
+      ) {
+        navigate(pathForSelection('elections', route.selectedId, route.expandedCandidateId), { replace: true });
+      }
+    }
+  }, [active.key, db, navigate, route.expandedCandidateId, route.expandedStanceId, route.isKnownPath, route.selectedId]);
+
+  function navigateToSelection(tabKey: EntityKey, id: Id | null, options?: { replace?: boolean }) {
+    navigate(pathForSelection(tabKey, id), { replace: options?.replace ?? false });
+  }
+
+  function navigateToElectionExpansion(electionId: Id, candidateId: Id | null, stanceId: Id | null = null) {
+    navigate(pathForSelection('elections', electionId, candidateId, stanceId));
+  }
 
   async function save(row: Database[EntityKey][number]) {
     if (!db) return;
@@ -285,7 +393,7 @@ export function App() {
       : [...rows, rowToSave];
     await saveEntity(active.key, rowToSave);
     setDb({ ...db, [active.key]: nextRows });
-    setSelectedId(rowToSave.id);
+    if (route.selectedId !== rowToSave.id) navigateToSelection(active.key, rowToSave.id, { replace: true });
   }
 
   async function saveToStore<TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number]) {
@@ -369,7 +477,7 @@ export function App() {
     const contests = duplicateElectionContests((selected as Election).id, copy.id, db);
     await Promise.all(contests.map((contest) => saveEntity('contests', contest)));
     setDb({ ...db, elections: [...db.elections, copy], contests: [...db.contests, ...contests] });
-    setSelectedId(copy.id);
+    navigateToSelection('elections', copy.id);
   }
 
   async function remove(id: Id) {
@@ -383,7 +491,7 @@ export function App() {
     } else {
       setDb({ ...db, [active.key]: nextRows });
     }
-    setSelectedId(nextRows[0]?.id ?? 0);
+    navigateToSelection(active.key, nextRows[0]?.id ?? null, { replace: true });
   }
 
   async function backup() {
@@ -407,7 +515,7 @@ export function App() {
       setRestoreBusy(true);
       const data = restoreUseSeed ? await restoreDatabaseFromSeed() : await restoreDatabaseFromJson(await restoreFile!.text());
       setDb(data);
-      setSelectedId(data[active.key][0]?.id ?? 0);
+      navigateToSelection(active.key, sortRowsForTab(data[active.key], active.key, data)[0]?.id ?? null, { replace: true });
       setRestoreOpen(false);
       setRestoreUseSeed(false);
       setRestoreFile(null);
@@ -441,7 +549,7 @@ export function App() {
         </div>
         <nav>
           {tabs.map((tab) => (
-            <button className={tab.key === active.key ? 'active' : ''} key={tab.key} onClick={() => { setActiveKey(tab.key); setSelectedId(sortRowsForTab(db[tab.key], tab.key, db)[0]?.id ?? 0); }}>
+            <button className={tab.key === active.key ? 'active' : ''} key={tab.key} onClick={() => navigateToSelection(tab.key, sortRowsForTab(db[tab.key], tab.key, db)[0]?.id ?? null)}>
               {tab.label}<span>{db[tab.key].length}</span>
             </button>
           ))}
@@ -505,7 +613,7 @@ export function App() {
         <div className="content">
           <div className="list">
             {visibleRows.map((row) => (
-              <button className={row.id === selected.id ? 'selected' : ''} key={row.id} onClick={() => setSelectedId(row.id)}>
+              <button className={row.id === selected.id ? 'selected' : ''} key={row.id} onClick={() => navigateToSelection(active.key, row.id)}>
                 <strong>{rowTitle(active.key, row, db)}</strong>
                 {active.key === 'issues' ? (
                   <>
@@ -542,6 +650,9 @@ export function App() {
             onDeleteContest={(id) => deleteFromStore('contests', id)}
             onSaveElectionStore={saveToElectionStore}
             onDeleteElectionStore={deleteFromElectionStore}
+            expandedCandidateId={route.expandedCandidateId}
+            expandedStanceId={route.expandedStanceId}
+            onElectionExpansionChange={(candidateId, stanceId) => navigateToElectionExpansion(selected.id, candidateId, stanceId)}
             onSave={save}
             onDelete={remove}
           />
@@ -701,6 +812,9 @@ function Editor({
   onDeleteContest,
   onSaveElectionStore,
   onDeleteElectionStore,
+  expandedCandidateId,
+  expandedStanceId,
+  onElectionExpansionChange,
   onSave,
   onDelete
 }: {
@@ -714,11 +828,13 @@ function Editor({
   onDeleteContest: (id: Id) => void;
   onSaveElectionStore: <TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number], electionId: Id) => Promise<void>;
   onDeleteElectionStore: <TStore extends EntityKey>(storeName: TStore, id: Id, electionId: Id) => Promise<void>;
+  expandedCandidateId: Id | null;
+  expandedStanceId: Id | null;
+  onElectionExpansionChange: (candidateId: Id | null, stanceId?: Id | null) => void;
   onSave: (row: Database[EntityKey][number]) => void | Promise<void>;
   onDelete: (id: Id) => void;
 }) {
   const [draft, setDraft] = useState(row);
-  const [expandedCandidateId, setExpandedCandidateId] = useState<Id | null>(null);
   const contestScores = useMemo(() => tab.key === 'elections' ? getCandidateContestRows(db, draft as Election) : [], [db, draft, tab.key]);
 
   function update(key: string, value: unknown) {
@@ -770,7 +886,7 @@ function Editor({
                         className={expandedCandidateId === score.candidate.id ? 'score-card expanded' : 'score-card'}
                         key={score.candidate.id}
                         type="button"
-                        onClick={() => setExpandedCandidateId(expandedCandidateId === score.candidate.id ? null : score.candidate.id)}
+                        onClick={() => onElectionExpansionChange(expandedCandidateId === score.candidate.id ? null : score.candidate.id)}
                       >
                         {expandedCandidateId === score.candidate.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                         <span>
@@ -785,8 +901,10 @@ function Editor({
                       candidate={score.candidate}
                       db={db}
                       election={draft as Election}
+                      expandedStanceId={expandedStanceId}
                       key={`stances-${score.candidate.id}`}
                       onDeleteEntity={onDeleteElectionStore}
+                      onExpandedStanceChange={(stanceId) => onElectionExpansionChange(score.candidate.id, stanceId)}
                       onSaveEntity={onSaveElectionStore}
                     />
                   ) : null)}
@@ -805,16 +923,20 @@ function CandidateStanceEditor({
   candidate,
   db,
   election,
+  expandedStanceId,
   onSaveEntity,
-  onDeleteEntity
+  onDeleteEntity,
+  onExpandedStanceChange
 }: {
   candidate: Candidate;
   db: Database;
   election: Election;
+  expandedStanceId: Id | null;
   onSaveEntity: <TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number], electionId: Id) => Promise<void>;
   onDeleteEntity: <TStore extends EntityKey>(storeName: TStore, id: Id, electionId: Id) => Promise<void>;
+  onExpandedStanceChange: (stanceId: Id | null) => void;
 }) {
-  const [expandedStanceId, setExpandedStanceId] = useState<Id | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const electionIssues = election.issues
     .map((electionIssue) => ({
       electionIssue,
@@ -842,19 +964,27 @@ function CandidateStanceEditor({
       description: null
     };
     await onSaveEntity('stances', stance, election.id);
-    setExpandedStanceId(stance.id);
+    onExpandedStanceChange(stance.id);
   }
 
   async function toggleStanceRow(stance: Stance | null, issueId: Id, isExpanded: boolean) {
     if (stance) {
-      setExpandedStanceId(isExpanded ? null : stance.id);
+      onExpandedStanceChange(isExpanded ? null : stance.id);
       return;
     }
     await createStance(issueId);
   }
 
+  useEffect(() => {
+    if (expandedStanceId !== null) return;
+    const frame = window.requestAnimationFrame(() => {
+      panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [candidate.id, expandedStanceId]);
+
   return (
-    <section className="candidate-stance-panel">
+    <section className="candidate-stance-panel" ref={panelRef}>
       <h5>{candidateName(candidate)} stances</h5>
       <div className="stance-list">
         {electionIssues.length === 0 && <p>No election issues selected. Add an issue to create candidate stances.</p>}
@@ -904,8 +1034,10 @@ function StanceDetailEditor({
   onSaveEntity: <TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number], electionId: Id) => Promise<void>;
   onDeleteEntity: <TStore extends EntityKey>(storeName: TStore, id: Id, electionId: Id) => Promise<void>;
 }) {
+  const detailRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState(stance);
   const [addOpen, setAddOpen] = useState(false);
+  const [isCreatingFact, setIsCreatingFact] = useState(false);
   const [newFactDraft, setNewFactDraft] = useState({ summary: '', description: '' });
   const linkedRows = db.stanceFacts
     .filter((link) => link.stance === stance.id)
@@ -920,18 +1052,32 @@ function StanceDetailEditor({
 
   useDebouncedAutoSave(draft, (nextDraft) => onSaveEntity('stances', { ...nextDraft, date_updated: new Date().toISOString() }, electionId));
 
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [stance.id]);
+
   async function createFact(summary: string, description: string) {
     const now = new Date().toISOString();
     const fact: Fact = { id: nextId(db.facts), date_created: now, date_updated: now, Summary: summary, description: description || null };
     const link: StanceFact = { id: nextId(db.stanceFacts), stance: stance.id, fact: fact.id };
-    await onSaveEntity('facts', fact, electionId);
-    await onSaveEntity('stanceFacts', link, electionId);
-    setNewFactDraft({ summary: '', description: '' });
-    setAddOpen(false);
+    setIsCreatingFact(true);
+    try {
+      await Promise.all([
+        onSaveEntity('facts', fact, electionId),
+        onSaveEntity('stanceFacts', link, electionId)
+      ]);
+      setNewFactDraft({ summary: '', description: '' });
+      setAddOpen(false);
+    } finally {
+      setIsCreatingFact(false);
+    }
   }
 
   return (
-    <div className="stance-detail">
+    <div className="stance-detail" ref={detailRef}>
       <div className="stance-form-grid">
         <label>Title<input value={draft.title ?? ''} onChange={(event) => setDraft({ ...draft, title: event.target.value || null })} /></label>
         <label>Rating<input type="number" step="any" value={draft.rating ?? ''} onChange={(event) => setDraft({ ...draft, rating: event.target.value === '' ? null : Number(event.target.value) })} /></label>
@@ -963,9 +1109,9 @@ function StanceDetailEditor({
                 onChange={(event) => setNewFactDraft((current) => ({ ...current, description: event.target.value }))}
               />
             </label>
-            <button type="button" className="create-option" disabled={!newFactSummary} onClick={() => createFact(newFactSummary, newFactDescription)}>
+            <button type="button" className="create-option" disabled={!newFactSummary || isCreatingFact} onClick={() => createFact(newFactSummary, newFactDescription)}>
               <Plus size={16} />
-              <span>{newFactSummary ? `Create fact "${newFactSummary}"` : 'Create fact'}</span>
+              <span>{isCreatingFact ? 'Creating fact...' : newFactSummary ? `Create fact "${newFactSummary}"` : 'Create fact'}</span>
             </button>
           </div>
         )}
