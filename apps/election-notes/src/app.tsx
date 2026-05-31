@@ -83,12 +83,11 @@ const tabs: Tab[] = [
   {
     key: 'issues',
     label: 'Issues',
-    summary: (row) => `Global points ${formatScore((row as Issue).points)}; election weights are edited on Elections`,
-    blank: (db) => ({ id: nextId(db.issues), name: '', description: null, points: null, confidence: null, stancesCount: null }),
+    summary: (row) => `Confidence ${formatScore((row as Issue).confidence)} with ${formatScore((row as Issue).stancesCount)} stances`,
+    blank: (db) => ({ id: nextId(db.issues), name: '', description: null, confidence: null, stancesCount: null }),
     fields: [
       { key: 'name', label: 'Name', type: 'text', nullable: true },
       { key: 'description', label: 'Description', type: 'textarea', nullable: true },
-      { key: 'points', label: 'Global/default points', type: 'number', nullable: true },
       { key: 'confidence', label: 'Confidence', type: 'number', nullable: true },
       { key: 'stancesCount', label: 'Stances count', type: 'number', nullable: true }
     ]
@@ -871,10 +870,10 @@ function ElectionIssueEditor({
         results={filtered}
         getResultKey={(issue) => issue.id}
         renderResult={(issue) => issueName(issue)}
-        renderMeta={(issue) => `${formatScore(issue.points ?? 0)} default points`}
+        renderMeta={(issue) => `${formatScore(issue.confidence)} confidence`}
         emptyText="No available issues match."
         onSelect={(issue) => {
-          onChange([...value, { issueId: issue.id, points: issue.points ?? 0 }]);
+          onChange([...value, { issueId: issue.id, points: 0 }]);
           setSearch('');
           setAddOpen(false);
         }}

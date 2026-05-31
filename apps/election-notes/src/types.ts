@@ -15,7 +15,6 @@ export type Issue = {
   id: Id;
   name: string | null;
   description: string | null;
-  points: number | null;
   confidence: number | null;
   stancesCount: number | null;
 };

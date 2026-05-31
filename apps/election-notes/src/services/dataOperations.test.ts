@@ -95,7 +95,7 @@ describe.sequential('IndexedDB repository data operations', () => {
     const db = await openDatabase();
     try {
       expect(db.name).toBe(databaseName);
-      expect(db.version).toBe(3);
+      expect(db.version).toBe(4);
       expect(Array.from(db.objectStoreNames).sort()).toEqual([...storeNames, 'metadata'].sort());
     } finally {
       db.close();
@@ -117,7 +117,7 @@ describe.sequential('IndexedDB repository data operations', () => {
 
   it('saves and deletes individual records without changing unrelated stores', async () => {
     const data = emptyDatabase();
-    data.issues.push({ id: 1, name: 'Taxes', description: null, points: 10, confidence: 80, stancesCount: 0 });
+    data.issues.push({ id: 1, name: 'Taxes', description: null, confidence: 80, stancesCount: 0 });
     await replaceAllStores(data);
 
     const candidate = {
@@ -206,6 +206,17 @@ describe.sequential('database service data operations', () => {
         { id: 6, electionId: 2, name: 'Needs migration contest', candidateIds: [20] }
       ]
     });
+  });
+
+  it('normalizes legacy issue default points out of backups', () => {
+    const backup = {
+      ...emptyDatabase(),
+      issues: [{ id: 1, name: 'Legacy weighted issue', description: null, points: 99, confidence: 50, stancesCount: 2 }]
+    };
+
+    expect(validateDatabase(backup).issues).toEqual([
+      { id: 1, name: 'Legacy weighted issue', description: null, confidence: 50, stancesCount: 2 }
+    ]);
   });
 
   it('preserves an intentionally empty initialized database', async () => {
@@ -319,8 +330,8 @@ describe('Directus report data operations', () => {
       { id: 2, firstName: 'Ben', middleName: null, lastName: 'Beta', score: 10, confidence: null, stancesCount: 1, confidenceScoreProduct: null }
     );
     data.issues.push(
-      { id: 3, name: 'High points', description: null, points: 100, confidence: 12, stancesCount: 4 },
-      { id: 4, name: 'Low points', description: null, points: 1, confidence: 99, stancesCount: 1 }
+      { id: 3, name: 'High confidence', description: null, confidence: 99, stancesCount: 1 },
+      { id: 4, name: 'Low confidence', description: null, confidence: 12, stancesCount: 4 }
     );
     data.stances.push(
       { id: 5, date_created: null, date_updated: null, title: 'Known', candidate: 1, issue: 3, rating: 50, points: null, confidence: 88.84, label: 'Known confidence', description: null },
@@ -341,7 +352,7 @@ describe('Directus report data operations', () => {
     expect(getReportPanelData(stancesDashboard.panels[1], data)).toEqual([
       { id: 6, label: 'Missing confidence', value: null, color: null }
     ]);
-    expect(getReportPanelData(stancesDashboard.panels[2], data).map((item) => item.label)).toEqual(['High points', 'Low points']);
+    expect(getReportPanelData(stancesDashboard.panels[2], data).map((item) => item.label)).toEqual(['High confidence', 'Low confidence']);
   });
 
   it('computes candidate contest rows from election-specific issue weights', () => {
@@ -350,7 +361,7 @@ describe('Directus report data operations', () => {
       { id: 1, firstName: 'Ada', middleName: null, lastName: 'Alpha', score: 5, confidence: null, stancesCount: null, confidenceScoreProduct: null },
       { id: 2, firstName: 'Ben', middleName: null, lastName: 'Beta', score: 50, confidence: null, stancesCount: null, confidenceScoreProduct: null }
     );
-    data.issues.push({ id: 10, name: 'Privacy', description: null, points: 100, confidence: null, stancesCount: null });
+    data.issues.push({ id: 10, name: 'Privacy', description: null, confidence: null, stancesCount: null });
     data.stances.push(
       { id: 20, date_created: null, date_updated: null, title: null, candidate: 1, issue: 10, rating: 100, points: null, confidence: null, label: null, description: null },
       { id: 21, date_created: null, date_updated: null, title: null, candidate: 2, issue: 10, rating: 25, points: null, confidence: null, label: null, description: null }
@@ -373,8 +384,8 @@ describe('Directus report data operations', () => {
       { id: 3, firstName: 'Cid', middleName: null, lastName: 'Gamma', score: 90, confidence: 95, stancesCount: 1, confidenceScoreProduct: 8550 }
     );
     data.issues.push(
-      { id: 10, name: 'Privacy', description: null, points: 100, confidence: 70, stancesCount: 2 },
-      { id: 11, name: 'Transit', description: null, points: 50, confidence: 90, stancesCount: 1 }
+      { id: 10, name: 'Privacy', description: null, confidence: 70, stancesCount: 2 },
+      { id: 11, name: 'Transit', description: null, confidence: 90, stancesCount: 1 }
     );
     data.stances.push(
       { id: 20, date_created: null, date_updated: null, title: null, candidate: 1, issue: 10, rating: 100, points: null, confidence: 80, label: 'Included', description: null },
@@ -429,7 +440,7 @@ describe('election UX helpers', () => {
   it('builds inline candidate and issue records with new ids', () => {
     const data = emptyDatabase();
     data.candidates.push({ id: 2, firstName: 'Existing', middleName: null, lastName: 'Candidate', score: null, confidence: null, stancesCount: null, confidenceScoreProduct: null });
-    data.issues.push({ id: 4, name: 'Existing issue', description: null, points: 10, confidence: null, stancesCount: null });
+    data.issues.push({ id: 4, name: 'Existing issue', description: null, confidence: null, stancesCount: null });
 
     expect(candidateFromInlineName('Ada Lovelace', data)).toEqual({
       id: 3,
@@ -445,7 +456,6 @@ describe('election UX helpers', () => {
       id: 5,
       name: 'Ballot access',
       description: null,
-      points: 0,
       confidence: null,
       stancesCount: null
     });

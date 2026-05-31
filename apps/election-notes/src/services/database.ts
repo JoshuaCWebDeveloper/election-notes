@@ -35,7 +35,6 @@ const rowShape: Record<EntityKey, Record<string, ValidationRule>> = {
     id: 'requiredNumber',
     name: 'string',
     description: 'string',
-    points: 'number',
     confidence: 'number',
     stancesCount: 'number'
   },
@@ -201,7 +200,13 @@ export function normalizeDatabase(value: unknown): Database {
 
   return {
     candidates: structuredClone(value.candidates),
-    issues: structuredClone(value.issues),
+    issues: Array.isArray(value.issues)
+      ? value.issues.map((issue) => {
+        if (!isRecord(issue)) return structuredClone(issue);
+        const { points: _points, ...nextIssue } = issue;
+        return nextIssue;
+      })
+      : structuredClone(value.issues),
     stances: structuredClone(value.stances),
     facts: structuredClone(value.facts),
     stanceFacts: structuredClone(value.stanceFacts),
