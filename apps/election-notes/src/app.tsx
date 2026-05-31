@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight, Copy, Download, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy, Download, Menu, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { canRestoreSeedData, createBackupJson, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
 import { candidateFromInlineName, contestFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
@@ -328,14 +328,19 @@ export function App() {
   const active = tabs.find((tab) => tab.key === activeKey)!;
   const rows = db?.[active.key] ?? [];
   const visibleRows = useMemo(() => db ? sortRowsForTab(rows, active.key, db) : rows, [active.key, db, rows]);
-  const selectedId = route.selectedId ?? visibleRows[0]?.id ?? 0;
+  const selectedId = route.selectedId ?? (active.key === 'elections' ? null : visibleRows[0]?.id ?? null);
   const [restoreOpen, setRestoreOpen] = useState(false);
+  const [electionMenuOpen, setElectionMenuOpen] = useState(false);
   const [restoreUseSeed, setRestoreUseSeed] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [restoreBusy, setRestoreBusy] = useState(false);
   const seedRestoreAvailable = canRestoreSeedData();
-  const selected = db ? rows.find((row) => row.id === selectedId) ?? visibleRows[0] ?? active.blank(db) : null;
+  const selected = db
+    ? selectedId === null
+      ? active.key === 'elections' ? null : visibleRows[0] ?? active.blank(db)
+      : rows.find((row) => row.id === selectedId) ?? (active.key === 'elections' ? null : visibleRows[0] ?? active.blank(db))
+    : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -353,11 +358,27 @@ export function App() {
   useEffect(() => {
     if (!db) return;
     const tabRows = sortRowsForTab(db[active.key], active.key, db);
-    const hasSelectedRoute = route.selectedId !== null && tabRows.some((row) => row.id === route.selectedId);
-    if (!route.isKnownPath || !hasSelectedRoute) {
-      navigate(pathForSelection(active.key, tabRows[0]?.id ?? null), { replace: true });
+    if (!route.isKnownPath) {
+      navigate('/elections', { replace: true });
       return;
     }
+
+    if (active.key !== 'elections') {
+      const hasSelectedRoute = route.selectedId !== null && tabRows.some((row) => row.id === route.selectedId);
+      if (!hasSelectedRoute) {
+        navigate(pathForSelection(active.key, tabRows[0]?.id ?? null), { replace: true });
+      }
+      return;
+    }
+
+    if (route.selectedId === null) return;
+
+    const hasSelectedElection = tabRows.some((row) => row.id === route.selectedId);
+    if (!hasSelectedElection) {
+      navigate('/elections', { replace: true });
+      return;
+    }
+
     if (active.key === 'elections' && route.selectedId !== null) {
       const election = tabRows.find((row) => row.id === route.selectedId) as Election | undefined;
       if (!election) return;
@@ -376,6 +397,10 @@ export function App() {
       }
     }
   }, [active.key, db, navigate, route.expandedCandidateId, route.expandedStanceId, route.isKnownPath, route.selectedId]);
+
+  useEffect(() => {
+    setElectionMenuOpen(false);
+  }, [location.pathname]);
 
   function navigateToSelection(tabKey: EntityKey, id: Id | null, options?: { replace?: boolean }) {
     navigate(pathForSelection(tabKey, id), { replace: options?.replace ?? false });
@@ -475,7 +500,7 @@ export function App() {
   }
 
   async function duplicateSelectedElection() {
-    if (!db || active.key !== 'elections') return;
+    if (!db || active.key !== 'elections' || !selected) return;
     const copy = duplicateElection(selected as Election, db);
     await saveEntity('elections', copy);
     const contests = duplicateElectionContests((selected as Election).id, copy.id, db);
@@ -499,7 +524,7 @@ export function App() {
     } else {
       setDb((current) => current ? { ...current, [active.key]: current[active.key].filter((row) => row.id !== id) } : current);
     }
-    navigateToSelection(active.key, nextRows[0]?.id ?? null, { replace: true });
+    navigateToSelection(active.key, active.key === 'elections' ? null : nextRows[0]?.id ?? null, { replace: true });
   }
 
   async function backup() {
@@ -523,7 +548,7 @@ export function App() {
       setRestoreBusy(true);
       const data = restoreUseSeed ? await restoreDatabaseFromSeed() : await restoreDatabaseFromJson(await restoreFile!.text());
       setDb(data);
-      navigateToSelection(active.key, sortRowsForTab(data[active.key], active.key, data)[0]?.id ?? null, { replace: true });
+      navigateToSelection(active.key, active.key === 'elections' ? null : sortRowsForTab(data[active.key], active.key, data)[0]?.id ?? null, { replace: true });
       setRestoreOpen(false);
       setRestoreUseSeed(false);
       setRestoreFile(null);
@@ -534,7 +559,7 @@ export function App() {
     }
   }
 
-  if (!db || !selected) {
+  if (!db) {
     return (
       <main>
         <aside>
@@ -557,7 +582,7 @@ export function App() {
         </div>
         <nav>
           {tabs.map((tab) => (
-            <button className={tab.key === active.key ? 'active' : ''} key={tab.key} onClick={() => navigateToSelection(tab.key, sortRowsForTab(db[tab.key], tab.key, db)[0]?.id ?? null)}>
+            <button className={tab.key === active.key ? 'active' : ''} key={tab.key} onClick={() => navigateToSelection(tab.key, tab.key === 'elections' ? null : sortRowsForTab(db[tab.key], tab.key, db)[0]?.id ?? null)}>
               {tab.label}<span>{db[tab.key].length}</span>
             </button>
           ))}
@@ -608,65 +633,191 @@ export function App() {
         </div>
       )}
       <section className="workspace">
-        <header>
-          <div>
-            <h2>{active.label}</h2>
-            <p>{active.key === 'elections' ? 'Election issue points are stored per election and used for scoring.' : 'Create, edit, delete, and connect SQL-derived records.'}</p>
-          </div>
-          <div className="header-actions">
-            {active.key === 'elections' && <button onClick={duplicateSelectedElection}><Copy size={16} /> Duplicate</button>}
-            <button onClick={() => { const row = active.blank(db); save(row); }}><Plus size={16} /> New</button>
-          </div>
-        </header>
-        <div className="content">
-          <div className="list">
-            {visibleRows.map((row) => (
-              <button className={row.id === selected.id ? 'selected' : ''} key={row.id} onClick={() => navigateToSelection(active.key, row.id)}>
-                <strong>{rowTitle(active.key, row, db)}</strong>
-                {active.key === 'issues' ? (
-                  <>
-                    <span>{(row as Issue).description || 'No description.'}</span>
-                    <span>{active.summary(row as never, db)}</span>
-                  </>
-                ) : (
-                  <span>{active.summary(row as never, db)}</span>
-                )}
-              </button>
-            ))}
-          </div>
-          <Editor
-            key={`${active.key}-${selected.id}`}
-            db={db}
-            tab={active}
-            row={selected}
-            onCreateCandidate={async (name) => {
-              const candidate = candidateFromInlineName(name, db);
-              await saveToStore('candidates', candidate);
-              return candidate.id;
-            }}
-            onCreateIssue={async (name) => {
-              const issue = issueFromInlineName(name, db);
-              await saveToStore('issues', issue);
-              return issue.id;
-            }}
-            onCreateContest={async (name, electionId) => {
-              const contest = contestFromInlineName(name, electionId, db);
-              await saveToStore('contests', contest);
-              return contest;
-            }}
-            onSaveContest={(contest) => saveToStore('contests', contest)}
-            onDeleteContest={(id) => deleteFromStore('contests', id)}
-            onSaveElectionStore={saveToElectionStore}
-            onDeleteElectionStore={deleteFromElectionStore}
-            expandedCandidateId={route.expandedCandidateId}
-            expandedStanceId={route.expandedStanceId}
-            onElectionExpansionChange={(candidateId, stanceId) => navigateToElectionExpansion(selected.id, candidateId, stanceId)}
-            onSave={save}
-            onDelete={remove}
-          />
-        </div>
+        {active.key === 'elections' && selected === null ? (
+          <>
+            <header>
+              <div>
+                <h2>{active.label}</h2>
+                <p>Choose an election to open its full scoring, stance, fact, and report workspace.</p>
+              </div>
+              <div className="header-actions">
+                <button onClick={() => { const row = active.blank(db); void save(row); }}><Plus size={16} /> New</button>
+              </div>
+            </header>
+            <ElectionCardList
+              db={db}
+              elections={visibleRows as Election[]}
+              onSelect={(id) => navigateToSelection('elections', id)}
+            />
+          </>
+        ) : active.key === 'elections' && selected !== null ? (
+          <>
+            <header>
+              <div className="election-header-title">
+                <button
+                  type="button"
+                  className="menu-button"
+                  aria-expanded={electionMenuOpen}
+                  aria-label="Open election list"
+                  onClick={() => setElectionMenuOpen(true)}
+                >
+                  <Menu size={18} />
+                </button>
+                <div>
+                  <h2>{rowTitle(active.key, selected, db)}</h2>
+                  <p>Election issue points are stored per election and used for scoring.</p>
+                </div>
+              </div>
+              <div className="header-actions">
+                <button onClick={duplicateSelectedElection}><Copy size={16} /> Duplicate</button>
+                <button onClick={() => { const row = active.blank(db); void save(row); }}><Plus size={16} /> New</button>
+              </div>
+            </header>
+            {electionMenuOpen && (
+              <div className="election-menu-backdrop" role="presentation" onClick={() => setElectionMenuOpen(false)}>
+                <aside className="election-menu" aria-label="Election list" onClick={(event) => event.stopPropagation()}>
+                  <div className="election-menu-heading">
+                    <h3>Elections</h3>
+                    <button type="button" aria-label="Close election list" onClick={() => setElectionMenuOpen(false)}><X size={16} /></button>
+                  </div>
+                  <ElectionCardList
+                    db={db}
+                    elections={visibleRows as Election[]}
+                    selectedId={selected.id}
+                    onSelect={(id) => {
+                      setElectionMenuOpen(false);
+                      navigateToSelection('elections', id);
+                    }}
+                  />
+                </aside>
+              </div>
+            )}
+            <div className="content election-full-content">
+              <Editor
+                key={`${active.key}-${selected.id}`}
+                db={db}
+                tab={active}
+                row={selected}
+                onCreateCandidate={async (name) => {
+                  const candidate = candidateFromInlineName(name, db);
+                  await saveToStore('candidates', candidate);
+                  return candidate.id;
+                }}
+                onCreateIssue={async (name) => {
+                  const issue = issueFromInlineName(name, db);
+                  await saveToStore('issues', issue);
+                  return issue.id;
+                }}
+                onCreateContest={async (name, electionId) => {
+                  const contest = contestFromInlineName(name, electionId, db);
+                  await saveToStore('contests', contest);
+                  return contest;
+                }}
+                onSaveContest={(contest) => saveToStore('contests', contest)}
+                onDeleteContest={(id) => deleteFromStore('contests', id)}
+                onSaveElectionStore={saveToElectionStore}
+                onDeleteElectionStore={deleteFromElectionStore}
+                expandedCandidateId={route.expandedCandidateId}
+                expandedStanceId={route.expandedStanceId}
+                onElectionExpansionChange={(candidateId, stanceId) => navigateToElectionExpansion(selected.id, candidateId, stanceId)}
+                onSave={save}
+                onDelete={remove}
+              />
+            </div>
+          </>
+        ) : selected !== null ? (
+          <>
+            <header>
+              <div>
+                <h2>{active.label}</h2>
+                <p>Create, edit, delete, and connect SQL-derived records.</p>
+              </div>
+              <div className="header-actions">
+                <button onClick={() => { const row = active.blank(db); void save(row); }}><Plus size={16} /> New</button>
+              </div>
+            </header>
+            <div className="content">
+              <div className="list">
+                {visibleRows.map((row) => (
+                  <button className={row.id === selected.id ? 'selected' : ''} key={row.id} onClick={() => navigateToSelection(active.key, row.id)}>
+                    <strong>{rowTitle(active.key, row, db)}</strong>
+                    {active.key === 'issues' ? (
+                      <>
+                        <span>{(row as Issue).description || 'No description.'}</span>
+                        <span>{active.summary(row as never, db)}</span>
+                      </>
+                    ) : (
+                      <span>{active.summary(row as never, db)}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <Editor
+                key={`${active.key}-${selected.id}`}
+                db={db}
+                tab={active}
+                row={selected}
+                onCreateCandidate={async (name) => {
+                  const candidate = candidateFromInlineName(name, db);
+                  await saveToStore('candidates', candidate);
+                  return candidate.id;
+                }}
+                onCreateIssue={async (name) => {
+                  const issue = issueFromInlineName(name, db);
+                  await saveToStore('issues', issue);
+                  return issue.id;
+                }}
+                onCreateContest={async (name, electionId) => {
+                  const contest = contestFromInlineName(name, electionId, db);
+                  await saveToStore('contests', contest);
+                  return contest;
+                }}
+                onSaveContest={(contest) => saveToStore('contests', contest)}
+                onDeleteContest={(id) => deleteFromStore('contests', id)}
+                onSaveElectionStore={saveToElectionStore}
+                onDeleteElectionStore={deleteFromElectionStore}
+                expandedCandidateId={route.expandedCandidateId}
+                expandedStanceId={route.expandedStanceId}
+                onElectionExpansionChange={(candidateId, stanceId) => navigateToElectionExpansion(selected.id, candidateId, stanceId)}
+                onSave={save}
+                onDelete={remove}
+              />
+            </div>
+          </>
+        ) : null}
       </section>
     </main>
+  );
+}
+
+function ElectionCardList({
+  db,
+  elections,
+  selectedId,
+  onSelect
+}: {
+  db: Database;
+  elections: Election[];
+  selectedId?: Id;
+  onSelect: (id: Id) => void;
+}) {
+  return (
+    <div className="election-card-list">
+      {elections.length === 0 && <p className="empty-report">No elections created.</p>}
+      <div className="election-card-grid">
+        {elections.map((election) => (
+          <button
+            className={election.id === selectedId ? 'election-card selected' : 'election-card'}
+            key={election.id}
+            onClick={() => onSelect(election.id)}
+          >
+            <span className="election-card-title">{election.name}</span>
+            <span>{tabs[0].summary(election as never, db)}</span>
+            <span>{election.description || 'No description.'}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
