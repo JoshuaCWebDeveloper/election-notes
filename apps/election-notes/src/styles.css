@@ -541,7 +541,40 @@ textarea {
 }
 
 .issue-row {
-  grid-template-columns: minmax(0, 1fr) 8rem 8rem auto;
+  align-items: end;
+  background: #ffffff;
+  grid-template-columns: minmax(0, 1fr) minmax(7rem, 8rem) minmax(7rem, 8rem) auto;
+  padding: 0.65rem;
+}
+
+.issue-row label {
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.issue-row label,
+.issue-row input {
+  font-size: 0.9rem;
+}
+
+.issue-card-copy {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.issue-card-copy strong {
+  color: #1d2430;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.issue-card-copy span {
+  color: #667487;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  white-space: normal;
 }
 
 .contest-editor-list {
@@ -714,5 +747,13 @@ textarea {
 
   aside {
     min-height: auto;
+  }
+
+  .issue-row {
+    align-items: stretch;
+  }
+
+  .issue-row button {
+    justify-self: end;
   }
 }

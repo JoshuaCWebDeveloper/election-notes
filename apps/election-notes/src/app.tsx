@@ -83,7 +83,7 @@ const tabs: Tab[] = [
   {
     key: 'issues',
     label: 'Issues',
-    summary: (row) => `${formatScore((row as Issue).stancesCount)} stances`,
+    summary: (row, db) => `${formatScore((row as Issue).stancesCount)} stances, ${getIssueElectionCount(db, (row as Issue).id)} elections`,
     blank: (db) => ({ id: nextId(db.issues), name: '', description: null, stancesCount: null }),
     fields: [
       { key: 'name', label: 'Name', type: 'text', nullable: true },
@@ -349,7 +349,14 @@ export function App() {
             {rows.map((row) => (
               <button className={row.id === selected.id ? 'selected' : ''} key={row.id} onClick={() => setSelectedId(row.id)}>
                 <strong>{rowTitle(active.key, row, db)}</strong>
-                <span>{active.summary(row as never, db)}</span>
+                {active.key === 'issues' ? (
+                  <>
+                    <span>{(row as Issue).description || 'No description.'}</span>
+                    <span>{active.summary(row as never, db)}</span>
+                  </>
+                ) : (
+                  <span>{active.summary(row as never, db)}</span>
+                )}
               </button>
             ))}
           </div>
@@ -833,7 +840,8 @@ function ElectionIssueEditor({
   const [search, setSearch] = useState('');
   const included = value
     .map((item) => ({ ...item, issue: issues.find((issue) => issue.id === item.issueId) ?? null }))
-    .filter((item) => item.issue !== null);
+    .filter((item) => item.issue !== null)
+    .sort((a, b) => b.points - a.points || issueName(a.issue).localeCompare(issueName(b.issue)));
   const selected = new Set(value.map((item) => item.issueId));
   const available = issues.filter((issue) => !selected.has(issue.id));
   const filtered = filterByName(available, issueName, search);
@@ -852,9 +860,18 @@ function ElectionIssueEditor({
         {included.length === 0 && <p>No issues selected.</p>}
         {included.map((item) => (
           <div className="included-row issue-row" key={item.issueId}>
-            <span>{issueName(item.issue)}</span>
-            <input aria-label={`${issueName(item.issue)} points`} type="number" step="any" value={item.points} onChange={(event) => onChange(value.map((row) => row.issueId === item.issueId ? { ...row, points: Number(event.target.value) } : row))} />
-            <input aria-label={`${issueName(item.issue)} confidence`} type="number" step="any" value={item.confidence ?? ''} onChange={(event) => onChange(value.map((row) => row.issueId === item.issueId ? { ...row, confidence: event.target.value === '' ? null : Number(event.target.value) } : row))} />
+            <div className="issue-card-copy">
+              <strong>{issueName(item.issue)}</strong>
+              <span>{item.issue?.description || 'No description.'}</span>
+            </div>
+            <label>
+              Points
+              <input aria-label={`${issueName(item.issue)} points`} type="number" step="any" value={item.points} onChange={(event) => onChange(value.map((row) => row.issueId === item.issueId ? { ...row, points: Number(event.target.value) } : row))} />
+            </label>
+            <label>
+              Confidence
+              <input aria-label={`${issueName(item.issue)} confidence`} type="number" step="any" value={item.confidence ?? ''} onChange={(event) => onChange(value.map((row) => row.issueId === item.issueId ? { ...row, confidence: event.target.value === '' ? null : Number(event.target.value) } : row))} />
+            </label>
             <button type="button" aria-label={`Remove ${issueName(item.issue)}`} onClick={() => onChange(value.filter((row) => row.issueId !== item.issueId))}><X size={16} /></button>
           </div>
         ))}
@@ -989,6 +1006,10 @@ function rowTitle(entity: EntityKey, row: Database[EntityKey][number], db: Datab
   if (entity === 'firstRecords') return (row as First).name || `First #${row.id}`;
   if (entity === 'stanceFacts') return `Link #${row.id}`;
   return `Record #${row.id}`;
+}
+
+function getIssueElectionCount(db: Database, issueId: Id) {
+  return db.elections.filter((election) => election.issues.some((issue) => issue.issueId === issueId)).length;
 }
 
 function nullable(value: string, field: Field) {
