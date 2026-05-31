@@ -75,6 +75,7 @@ const rowShape: Record<EntityKey, Record<string, ValidationRule>> = {
     id: 'requiredNumber',
     name: 'requiredString',
     date: 'string',
+    date_updated: 'string',
     description: 'string',
     issues: 'electionIssues'
   },
@@ -194,6 +195,7 @@ export function normalizeDatabase(value: unknown): Database {
       }
       return {
         ...nextElection,
+        date_updated: typeof election.date_updated === 'string' ? election.date_updated : null,
         issues: normalizeElectionIssues(election.issues)
       };
     })

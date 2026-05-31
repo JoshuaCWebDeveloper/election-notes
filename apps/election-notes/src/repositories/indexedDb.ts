@@ -15,7 +15,7 @@ export const storeNames: StoreName[] = [
 ];
 
 const databaseName = 'election-notes';
-const databaseVersion = 7;
+const databaseVersion = 8;
 const metadataStoreName = 'metadata';
 const legacyStorageKey = 'election-notes-db-v1';
 const initializedKey = 'initialized';
@@ -63,7 +63,9 @@ export function openDatabase(): Promise<IDBDatabase> {
         migrateIssueStancesCount(request.transaction);
       }
       if (event.oldVersion > 0 && event.oldVersion < 7) {
-        migrateElectionIssueConfidence(request.transaction);
+        migrateElectionIssueConfidence(request.transaction, event.oldVersion < 8);
+      } else if (event.oldVersion > 0 && event.oldVersion < 8) {
+        migrateElectionDateUpdated(request.transaction);
       }
     };
 
@@ -149,7 +151,7 @@ function migrateIssueStancesCount(transaction: IDBTransaction | null): void {
   };
 }
 
-function migrateElectionIssueConfidence(transaction: IDBTransaction | null): void {
+function migrateElectionIssueConfidence(transaction: IDBTransaction | null, addDateUpdated = false): void {
   if (!transaction) return;
   const elections = transaction.objectStore('elections');
   const request = elections.openCursor();
@@ -166,7 +168,29 @@ function migrateElectionIssueConfidence(transaction: IDBTransaction | null): voi
         return nextIssue;
       })
       : election.issues;
-    cursor.update({ ...election, issues });
+    cursor.update({
+      ...election,
+      ...(addDateUpdated ? { date_updated: typeof election.date_updated === 'string' ? election.date_updated : null } : {}),
+      issues
+    });
+    cursor.continue();
+  };
+}
+
+function migrateElectionDateUpdated(transaction: IDBTransaction | null): void {
+  if (!transaction) return;
+  const elections = transaction.objectStore('elections');
+  const request = elections.openCursor();
+
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return;
+
+    const election = cursor.value as Record<string, unknown>;
+    cursor.update({
+      ...election,
+      date_updated: typeof election.date_updated === 'string' ? election.date_updated : null
+    });
     cursor.continue();
   };
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Copy, Download, Plus, RotateCcw, Save, Trash2, Upload, X } from 'lucide-react';
 import { canRestoreSeedData, createBackupJson, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
 import { candidateFromInlineName, contestFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
@@ -54,9 +54,9 @@ const tabs: Tab[] = [
     label: 'Elections',
     summary: (row, db) => {
       const election = row as Election;
-      return `${getElectionContestCount(db, election.id)} contests, ${getElectionCandidateCount(db, election.id)} candidates, ${election.issues.length} weighted issues`;
+      return `${getElectionContestCount(db, election.id)} contests, ${getElectionCandidateCount(db, election.id)} candidates, ${election.issues.length} weighted issues, updated ${formatUpdatedDate(election.date_updated)}`;
     },
-    blank: (db) => ({ id: nextId(db.elections), name: 'New election', date: null, description: null, issues: [] }),
+    blank: (db) => ({ id: nextId(db.elections), name: 'New election', date: null, date_updated: null, description: null, issues: [] }),
     fields: [
       { key: 'name', label: 'Name', type: 'text' },
       { key: 'date', label: 'Date', type: 'date', nullable: true },
@@ -152,21 +152,22 @@ export function App() {
   const [activeKey, setActiveKey] = useState<EntityKey>('elections');
   const active = tabs.find((tab) => tab.key === activeKey)!;
   const rows = db?.[active.key] ?? [];
-  const [selectedId, setSelectedId] = useState<Id>(rows[0]?.id ?? 0);
+  const visibleRows = useMemo(() => db ? sortRowsForTab(rows, active.key, db) : rows, [active.key, db, rows]);
+  const [selectedId, setSelectedId] = useState<Id>(visibleRows[0]?.id ?? 0);
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoreUseSeed, setRestoreUseSeed] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [restoreBusy, setRestoreBusy] = useState(false);
   const seedRestoreAvailable = canRestoreSeedData();
-  const selected = db ? rows.find((row) => row.id === selectedId) ?? rows[0] ?? active.blank(db) : null;
+  const selected = db ? rows.find((row) => row.id === selectedId) ?? visibleRows[0] ?? active.blank(db) : null;
 
   useEffect(() => {
     let cancelled = false;
     loadDatabase().then((data) => {
       if (cancelled) return;
       setDb(data);
-      setSelectedId(data[activeKey][0]?.id ?? 0);
+      setSelectedId(sortRowsForTab(data[activeKey], activeKey, data)[0]?.id ?? 0);
     }).catch((error: unknown) => {
       console.error('Failed to load IndexedDB database', error);
     });
@@ -177,30 +178,48 @@ export function App() {
 
   async function save(row: Database[EntityKey][number]) {
     if (!db) return;
+    const rowToSave = active.key === 'elections' ? withUpdatedDate(row as Election) : row;
     const nextRows = rows.some((item) => item.id === row.id)
-      ? rows.map((item) => item.id === row.id ? row : item)
-      : [...rows, row];
-    await saveEntity(active.key, row);
+      ? rows.map((item) => item.id === row.id ? rowToSave : item)
+      : [...rows, rowToSave];
+    await saveEntity(active.key, rowToSave);
     setDb({ ...db, [active.key]: nextRows });
-    setSelectedId(row.id);
+    setSelectedId(rowToSave.id);
   }
 
   async function saveToStore<TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number]) {
     if (!db) return;
+    const touchedElection = storeName === 'contests' ? touchElectionForContest(row as Contest, db) : null;
     await saveEntity(storeName, row);
+    if (touchedElection) await saveEntity('elections', touchedElection);
     setDb((current) => {
       if (!current) return current;
       const nextRows = current[storeName].some((item) => item.id === row.id)
         ? current[storeName].map((item) => item.id === row.id ? row : item)
         : [...current[storeName], row];
-      return { ...current, [storeName]: nextRows };
+      const nextElections = touchedElection
+        ? current.elections.map((election) => election.id === touchedElection.id ? touchedElection : election)
+        : current.elections;
+      return { ...current, [storeName]: nextRows, elections: nextElections };
     });
   }
 
   async function deleteFromStore<TStore extends EntityKey>(storeName: TStore, id: Id) {
     if (!db) return;
+    const deletedContest = storeName === 'contests' ? db.contests.find((contest) => contest.id === id) ?? null : null;
+    const touchedElection = deletedContest ? touchElectionForContest(deletedContest, db) : null;
     await deleteEntity(storeName, id);
-    setDb((current) => current ? { ...current, [storeName]: current[storeName].filter((item) => item.id !== id) } : current);
+    if (touchedElection) await saveEntity('elections', touchedElection);
+    setDb((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        [storeName]: current[storeName].filter((item) => item.id !== id),
+        elections: touchedElection
+          ? current.elections.map((election) => election.id === touchedElection.id ? touchedElection : election)
+          : current.elections
+      };
+    });
   }
 
   async function duplicateSelectedElection() {
@@ -282,7 +301,7 @@ export function App() {
         </div>
         <nav>
           {tabs.map((tab) => (
-            <button className={tab.key === active.key ? 'active' : ''} key={tab.key} onClick={() => { setActiveKey(tab.key); setSelectedId(db[tab.key][0]?.id ?? 0); }}>
+            <button className={tab.key === active.key ? 'active' : ''} key={tab.key} onClick={() => { setActiveKey(tab.key); setSelectedId(sortRowsForTab(db[tab.key], tab.key, db)[0]?.id ?? 0); }}>
               {tab.label}<span>{db[tab.key].length}</span>
             </button>
           ))}
@@ -345,7 +364,7 @@ export function App() {
         </header>
         <div className="content">
           <div className="list">
-            {rows.map((row) => (
+            {visibleRows.map((row) => (
               <button className={row.id === selected.id ? 'selected' : ''} key={row.id} onClick={() => setSelectedId(row.id)}>
                 <strong>{rowTitle(active.key, row, db)}</strong>
                 {active.key === 'issues' ? (
@@ -867,11 +886,11 @@ function ElectionIssueEditor({
             <div className="issue-card-copy">
               <strong>{issueName(item.issue)}</strong>
               <span>{item.issue?.description || 'No description.'}</span>
-              <span>Computed confidence: {formatScore(averageIssueConfidence(db, item.issueId, candidateIds))}</span>
+              <span>Confidence: {formatScore(averageIssueConfidence(db, item.issueId, candidateIds))}</span>
             </div>
             <label>
               Points
-              <input aria-label={`${issueName(item.issue)} points`} type="number" step="any" value={item.points} onChange={(event) => onChange(value.map((row) => row.issueId === item.issueId ? { ...row, points: Number(event.target.value) } : row))} />
+              <input aria-label={`${issueName(item.issue)} points`} type="number" step="any" value={item.points} onFocus={(event) => event.target.select()} onChange={(event) => onChange(value.map((row) => row.issueId === item.issueId ? { ...row, points: Number(event.target.value) } : row))} />
             </label>
             <button type="button" aria-label={`Remove ${issueName(item.issue)}`} onClick={() => onChange(value.filter((row) => row.issueId !== item.issueId))}><X size={16} /></button>
           </div>
@@ -888,7 +907,13 @@ function ElectionIssueEditor({
         results={filtered}
         getResultKey={(issue) => issue.id}
         renderResult={(issue) => issueName(issue)}
-        renderMeta={(issue) => `${formatScore(countIssueStances(db, issue.id))} stances`}
+        renderOption={(issue) => (
+          <div className="issue-card-copy">
+            <strong>{issueName(issue)}</strong>
+            <span>{issue.description || 'No description.'}</span>
+            <span>{formatScore(countIssueStances(db, issue.id))} stances, {getIssueElectionCount(db, issue.id)} elections</span>
+          </div>
+        )}
         emptyText="No available issues match."
         onSelect={(issue) => {
           onChange([...value, { issueId: issue.id, points: 0 }]);
@@ -912,6 +937,7 @@ function SearchAddPopover<TItem>({
   results,
   getResultKey,
   renderResult,
+  renderOption,
   renderMeta,
   emptyText,
   onSelect,
@@ -927,6 +953,7 @@ function SearchAddPopover<TItem>({
   results: TItem[];
   getResultKey: (item: TItem) => Id;
   renderResult: (item: TItem) => string;
+  renderOption?: (item: TItem) => ReactNode;
   renderMeta?: (item: TItem) => string;
   emptyText: string;
   onSelect: (item: TItem) => void;
@@ -977,8 +1004,12 @@ function SearchAddPopover<TItem>({
             {results.length === 0 && <p>{emptyText}</p>}
             {results.map((item) => (
               <button type="button" key={getResultKey(item)} onClick={() => onSelect(item)}>
-                <span>{renderResult(item)}</span>
-                {renderMeta && <small>{renderMeta(item)}</small>}
+                {renderOption ? renderOption(item) : (
+                  <>
+                    <span>{renderResult(item)}</span>
+                    {renderMeta && <small>{renderMeta(item)}</small>}
+                  </>
+                )}
               </button>
             ))}
           </div>
@@ -1011,6 +1042,48 @@ function rowTitle(entity: EntityKey, row: Database[EntityKey][number], db: Datab
 
 function getIssueElectionCount(db: Database, issueId: Id) {
   return db.elections.filter((election) => election.issues.some((issue) => issue.issueId === issueId)).length;
+}
+
+function sortRowsForTab<TStore extends EntityKey>(rows: Database[TStore], entity: TStore, db: Database): Database[TStore] {
+  if (entity === 'elections') {
+    return [...rows].sort((left, right) => compareUpdatedDates(left as Election, right as Election)) as Database[TStore];
+  }
+  if (entity === 'issues') {
+    return [...rows].sort((left, right) => (
+      countIssueStances(db, (right as Issue).id) - countIssueStances(db, (left as Issue).id) ||
+      issueName(left as Issue).localeCompare(issueName(right as Issue))
+    )) as Database[TStore];
+  }
+  return rows;
+}
+
+function compareUpdatedDates(left: Election, right: Election) {
+  return dateValue(right.date_updated) - dateValue(left.date_updated) || left.name.localeCompare(right.name);
+}
+
+function dateValue(value: string | null) {
+  if (!value) return Number.NEGATIVE_INFINITY;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? Number.NEGATIVE_INFINITY : date.getTime();
+}
+
+function withUpdatedDate(election: Election): Election {
+  return { ...election, date_updated: new Date().toISOString() };
+}
+
+function touchElectionForContest(contest: Contest, db: Database): Election | null {
+  const election = db.elections.find((row) => row.id === contest.electionId);
+  return election ? withUpdatedDate(election) : null;
+}
+
+function formatUpdatedDate(value: string | null) {
+  if (!value) return 'never';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  }).format(date);
 }
 
 function nullable(value: string, field: Field) {

@@ -96,6 +96,7 @@ export const seedData: Database = {
       id: 1,
       name: 'Example Local Election',
       date: '2024-11-05',
+      date_updated: '2024-01-05T12:00:00.000Z',
       description: 'Dummy election showing candidate membership and election-specific issue points.',
       issues: [
         {

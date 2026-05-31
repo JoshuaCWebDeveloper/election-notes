@@ -131,6 +131,33 @@ function createLegacyElectionIssueDatabase(): Promise<void> {
   });
 }
 
+function createLegacyElectionUpdatedDatabase(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(databaseName, 7);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore('elections', { keyPath: 'id' });
+    };
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const transaction = db.transaction('elections', 'readwrite');
+      transaction.objectStore('elections').put({
+        id: 1,
+        name: 'Legacy election',
+        date: null,
+        description: null,
+        issues: []
+      });
+      transaction.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    };
+  });
+}
+
 beforeEach(async () => {
   vi.unstubAllGlobals();
   vi.stubGlobal('localStorage', createLocalStorage());
@@ -143,7 +170,7 @@ describe.sequential('IndexedDB repository data operations', () => {
     const db = await openDatabase();
     try {
       expect(db.name).toBe(databaseName);
-      expect(db.version).toBe(7);
+      expect(db.version).toBe(8);
       expect(Array.from(db.objectStoreNames).sort()).toEqual([...storeNames, 'metadata'].sort());
     } finally {
       db.close();
@@ -209,8 +236,25 @@ describe.sequential('IndexedDB repository data operations', () => {
       id: 1,
       name: 'Legacy election',
       date: null,
+      date_updated: null,
       description: null,
       issues: [{ issueId: 10, points: 80 }]
+    }]);
+  });
+
+  it('migrates legacy IndexedDB election rows by adding a null updated date', async () => {
+    await createLegacyElectionUpdatedDatabase();
+
+    const db = await openDatabase();
+    db.close();
+
+    expect((await loadAllStores()).elections).toEqual([{
+      id: 1,
+      name: 'Legacy election',
+      date: null,
+      date_updated: null,
+      description: null,
+      issues: []
     }]);
   });
 });
@@ -243,7 +287,7 @@ describe.sequential('database service data operations', () => {
     delete (legacyJson as { contests?: unknown }).contests;
     const expected = {
       ...legacy,
-      elections: [{ id: 201, name: 'Legacy election', date: null, description: null, issues: [] }],
+      elections: [{ id: 201, name: 'Legacy election', date: null, date_updated: null, description: null, issues: [] }],
       contests: [{ id: 1, electionId: 201, name: 'Legacy election contest', candidateIds: [101] }]
     };
     localStorage.setItem(legacyStorageKey, JSON.stringify(legacyJson));
@@ -270,8 +314,8 @@ describe.sequential('database service data operations', () => {
 
     expect(validateDatabase(mixedBackup)).toMatchObject({
       elections: [
-        { id: 1, name: 'Already migrated', date: null, description: null, issues: [] },
-        { id: 2, name: 'Needs migration', date: null, description: null, issues: [] }
+        { id: 1, name: 'Already migrated', date: null, date_updated: null, description: null, issues: [] },
+        { id: 2, name: 'Needs migration', date: null, date_updated: null, description: null, issues: [] }
       ],
       contests: [
         { id: 5, electionId: 1, name: 'Existing contest', candidateIds: [10] },
@@ -330,6 +374,7 @@ describe.sequential('database service data operations', () => {
       id: 10,
       name: 'Special election',
       date: '2026-06-01',
+      date_updated: '2026-06-01T12:00:00.000Z',
       description: null,
       issues: []
     };
@@ -453,7 +498,7 @@ describe('Directus report data operations', () => {
       { id: 20, date_created: null, date_updated: null, title: null, candidate: 1, issue: 10, rating: 100, points: null, confidence: null, label: null, description: null },
       { id: 21, date_created: null, date_updated: null, title: null, candidate: 2, issue: 10, rating: 25, points: null, confidence: null, label: null, description: null }
     );
-    data.elections.push({ id: 30, name: 'General', date: null, description: null, issues: [{ issueId: 10, points: 80 }] });
+    data.elections.push({ id: 30, name: 'General', date: null, date_updated: null, description: null, issues: [{ issueId: 10, points: 80 }] });
     data.contests.push({ id: 31, electionId: 30, name: 'General contest', candidateIds: [1, 2] });
 
     expect(scoreElection(data.elections[0], data).map((row) => [row.candidate.id, row.score])).toEqual([[1, 80], [2, 20]]);
@@ -480,7 +525,7 @@ describe('Directus report data operations', () => {
       { id: 22, date_created: null, date_updated: null, title: null, candidate: 3, issue: 10, rating: 100, points: null, confidence: 20, label: 'Runoff', description: null },
       { id: 23, date_created: null, date_updated: null, title: null, candidate: 3, issue: 11, rating: 100, points: null, confidence: 90, label: 'Excluded issue', description: null }
     );
-    const election = { id: 30, name: 'General', date: null, description: null, issues: [{ issueId: 10, points: 80 }] };
+    const election = { id: 30, name: 'General', date: null, date_updated: null, description: null, issues: [{ issueId: 10, points: 80 }] };
     data.contests.push({ id: 31, electionId: 30, name: 'General contest', candidateIds: [1, 2] });
     data.contests.push({ id: 32, electionId: 30, name: 'Runoff contest', candidateIds: [3] });
 
@@ -508,19 +553,21 @@ describe('election UX helpers', () => {
       id: 3,
       name: 'Primary',
       date: '2026-06-01T00:00:00.000Z',
+      date_updated: '2026-05-01T00:00:00.000Z',
       description: 'Original notes',
       issues: [{ issueId: 5, points: 25 }]
     };
     data.elections.push({ ...election }, { ...election, id: 7, name: 'Other' });
     data.contests.push({ id: 10, electionId: 3, name: 'Mayor', candidateIds: [1, 2] });
 
-    const copy = duplicateElection(election, data);
+    const copy = duplicateElection(election, data, '2026-05-02T00:00:00.000Z');
     const contests = duplicateElectionContests(election.id, copy.id, data);
 
     expect(copy).toMatchObject({
       id: 8,
       name: 'Primary (copy)',
       date: '2026-06-02T00:00:00.000Z',
+      date_updated: '2026-05-02T00:00:00.000Z',
       description: 'Copied from Primary.\n\nOriginal notes',
       issues: [{ issueId: 5, points: 25 }]
     });

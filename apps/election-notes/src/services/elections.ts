@@ -4,7 +4,7 @@ export function nextId(rows: { id: Id }[]) {
   return Math.max(0, ...rows.map((row) => row.id)) + 1;
 }
 
-export function duplicateElection(election: Election, db: Database): Election {
+export function duplicateElection(election: Election, db: Database, dateUpdated = new Date().toISOString()): Election {
   const copiedDate = election.date ? bumpDateByOneDay(election.date) : null;
   const { issues, ...rest } = structuredClone(election) as Election & { issues: Array<Election['issues'][number] & { confidence?: unknown }> };
   return {
@@ -12,6 +12,7 @@ export function duplicateElection(election: Election, db: Database): Election {
     id: nextId(db.elections),
     name: copyName(election.name),
     date: copiedDate,
+    date_updated: dateUpdated,
     description: election.description ? `Copied from ${election.name}.\n\n${election.description}` : `Copied from ${election.name}.`,
     issues: issues.map((issue) => {
       const { confidence: _confidence, ...nextIssue } = issue as Election['issues'][number] & { confidence?: unknown };

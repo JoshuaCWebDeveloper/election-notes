@@ -65,6 +65,7 @@ export type Election = {
   id: Id;
   name: string;
   date: string | null;
+  date_updated: string | null;
   description: string | null;
   issues: ElectionIssue[];
 };
