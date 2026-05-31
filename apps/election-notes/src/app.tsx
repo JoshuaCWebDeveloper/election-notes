@@ -766,7 +766,12 @@ function CandidateStanceEditor({
       issue: db.issues.find((issue) => issue.id === electionIssue.issueId) ?? null,
       stance: db.stances.find((stance) => stance.candidate === candidate.id && stance.issue === electionIssue.issueId) ?? null
     }))
-    .filter((item) => item.issue !== null);
+    .filter((item) => item.issue !== null)
+    .sort((a, b) => {
+      const pointsDiff = b.electionIssue.points - a.electionIssue.points;
+      if (pointsDiff !== 0) return pointsDiff;
+      return issueName(a.issue).localeCompare(issueName(b.issue), undefined, { sensitivity: 'base' });
+    });
 
   async function createStance(issueId: Id) {
     const now = new Date().toISOString();
@@ -787,11 +792,19 @@ function CandidateStanceEditor({
     setExpandedStanceId(stance.id);
   }
 
+  async function toggleStanceRow(stance: Stance | null, issueId: Id, isExpanded: boolean) {
+    if (stance) {
+      setExpandedStanceId(isExpanded ? null : stance.id);
+      return;
+    }
+    await createStance(issueId);
+  }
+
   return (
     <section className="candidate-stance-panel">
       <h5>{candidateName(candidate)} stances</h5>
       <div className="stance-list">
-        {electionIssues.length === 0 && <p>No election issues selected.</p>}
+        {electionIssues.length === 0 && <p>No election issues selected. Add an issue to create candidate stances.</p>}
         {electionIssues.map(({ electionIssue, issue, stance }) => {
           const isExpanded = stance !== null && expandedStanceId === stance.id;
           return (
@@ -799,20 +812,14 @@ function CandidateStanceEditor({
               <div className="stance-row-summary">
                 <button
                   type="button"
-                  disabled={!stance}
-                  onClick={() => stance && setExpandedStanceId(isExpanded ? null : stance.id)}
+                  onClick={() => { void toggleStanceRow(stance, electionIssue.issueId, isExpanded); }}
                 >
                   {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   <span>
                     <strong>{issueName(issue)}</strong>
-                    <small>{stance ? `${stanceName(stance)} · rating ${formatScore(stance.rating)} · confidence ${formatScore(stance.confidence)}` : 'No stance yet'}</small>
+                    <small>{stance ? `${stanceName(stance)} · rating ${formatScore(stance.rating)} · confidence ${formatScore(stance.confidence)}` : 'No stance yet. Click to create and expand.'}</small>
                   </span>
                 </button>
-                {!stance && (
-                  <button type="button" onClick={() => createStance(electionIssue.issueId)}>
-                    <Plus size={16} /> Create stance
-                  </button>
-                )}
               </div>
               {stance && isExpanded && (
                 <StanceDetailEditor
