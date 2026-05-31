@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight, Copy, Download, Plus, RotateCcw, Save, Trash2, Upload, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy, Download, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
 import { canRestoreSeedData, createBackupJson, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
 import { candidateFromInlineName, contestFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
 import { averageIssueConfidence, countIssueStances, getCandidateContestRows, getElectionCandidateCount, getElectionContestCount, getElectionContests, getReportPanelData, reportDashboards, type ReportDatum, type ReportPanel } from './services/reports';
@@ -24,6 +24,62 @@ type Field = {
 type ConfirmableDeleteButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'> & {
   onConfirm: () => void | Promise<void>;
 };
+
+const autoSaveDelayMs = 700;
+
+function useDebouncedAutoSave<T>(value: T, onSave: (value: T) => void | Promise<void>, delay = autoSaveDelayMs) {
+  const isInitialValue = useRef(true);
+  const latestSave = useRef(onSave);
+  const latestValue = useRef(value);
+  const pending = useRef(false);
+  const timerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    latestSave.current = onSave;
+  }, [onSave]);
+
+  useEffect(() => {
+    latestValue.current = value;
+  }, [value]);
+
+  useEffect(() => {
+    if (isInitialValue.current) {
+      isInitialValue.current = false;
+      return;
+    }
+
+    pending.current = true;
+    timerRef.current = window.setTimeout(() => {
+      pending.current = false;
+      timerRef.current = null;
+      void latestSave.current(value);
+    }, delay);
+
+    return () => {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [delay, value]);
+
+  useEffect(() => () => {
+    if (pending.current) {
+      pending.current = false;
+      void latestSave.current(latestValue.current);
+    }
+  }, []);
+
+  return {
+    cancel() {
+      pending.current = false;
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+  };
+}
 
 function ConfirmableDeleteButton({ children, className, onConfirm, type = 'button', ...props }: ConfirmableDeleteButtonProps) {
   const [armed, setArmed] = useState(false);
@@ -78,7 +134,7 @@ function issueName(issue?: Issue | null) {
 }
 
 function stanceName(stance?: Stance | null) {
-  return stance?.label || stance?.title || `Stance #${stance?.id ?? 'none'}`;
+  return stance?.title || `Stance #${stance?.id ?? 'none'}`;
 }
 
 function factName(fact?: Fact | null) {
@@ -141,15 +197,13 @@ const tabs: Tab[] = [
     key: 'stances',
     label: 'Stances',
     summary: (row, db) => `${candidateName(db.candidates.find((c) => c.id === (row as Stance).candidate))} on ${issueName(db.issues.find((i) => i.id === (row as Stance).issue))}`,
-    blank: (db) => ({ id: nextId(db.stances), date_created: new Date().toISOString(), date_updated: null, title: '', candidate: null, issue: null, rating: null, points: null, confidence: null, label: null, description: null }),
+    blank: (db) => ({ id: nextId(db.stances), date_created: new Date().toISOString(), date_updated: null, title: '', candidate: null, issue: null, rating: null, confidence: null, description: null }),
     fields: [
       { key: 'title', label: 'Title', type: 'text', nullable: true },
       { key: 'candidate', label: 'Candidate', type: 'select', entity: 'candidates', nullable: true },
       { key: 'issue', label: 'Issue', type: 'select', entity: 'issues', nullable: true },
       { key: 'rating', label: 'Rating', type: 'number', nullable: true },
-      { key: 'points', label: 'Legacy stance points', type: 'number', nullable: true },
       { key: 'confidence', label: 'Confidence', type: 'number', nullable: true },
-      { key: 'label', label: 'Label', type: 'text', nullable: true },
       { key: 'description', label: 'Description', type: 'textarea', nullable: true },
       { key: 'date_created', label: 'Created', type: 'date', nullable: true },
       { key: 'date_updated', label: 'Updated', type: 'date', nullable: true }
@@ -656,11 +710,11 @@ function Editor({
   onCreateCandidate: (name: string) => Promise<Id>;
   onCreateIssue: (name: string) => Promise<Id>;
   onCreateContest: (name: string, electionId: Id) => Promise<Contest>;
-  onSaveContest: (contest: Contest) => void;
+  onSaveContest: (contest: Contest) => void | Promise<void>;
   onDeleteContest: (id: Id) => void;
   onSaveElectionStore: <TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number], electionId: Id) => Promise<void>;
   onDeleteElectionStore: <TStore extends EntityKey>(storeName: TStore, id: Id, electionId: Id) => Promise<void>;
-  onSave: (row: Database[EntityKey][number]) => void;
+  onSave: (row: Database[EntityKey][number]) => void | Promise<void>;
   onDelete: (id: Id) => void;
 }) {
   const [draft, setDraft] = useState(row);
@@ -671,16 +725,17 @@ function Editor({
     setDraft((current) => ({ ...current, [key]: value }) as typeof row);
   }
 
+  const autoSave = useDebouncedAutoSave(draft, onSave);
+
   return (
-    <form className="editor" onSubmit={(event) => { event.preventDefault(); onSave(draft); }}>
+    <form className="editor" onSubmit={(event) => event.preventDefault()}>
       <div className="editor-title">
         <div>
           <span>ID {draft.id}</span>
           <h3>{rowTitle(tab.key, draft, db)}</h3>
         </div>
         <div className="actions">
-          <button type="submit"><Save size={16} /> Save</button>
-          <ConfirmableDeleteButton className="danger" onConfirm={() => onDelete(draft.id)}>Delete</ConfirmableDeleteButton>
+          <ConfirmableDeleteButton className="danger" onConfirm={() => { autoSave.cancel(); onDelete(draft.id); }}>Delete</ConfirmableDeleteButton>
         </div>
       </div>
       <div className="form-grid">
@@ -783,9 +838,7 @@ function CandidateStanceEditor({
       candidate: candidate.id,
       issue: issueId,
       rating: null,
-      points: null,
       confidence: null,
-      label: null,
       description: null
     };
     await onSaveEntity('stances', stance, election.id);
@@ -858,24 +911,13 @@ function StanceDetailEditor({
     .filter((link) => link.stance === stance.id)
     .map((link) => ({ link, fact: db.facts.find((fact) => fact.id === link.fact) ?? null }))
     .filter((item): item is { link: StanceFact; fact: Fact } => item.fact !== null);
-  const linkedFactIds = new Set(linkedRows.map((item) => item.fact.id));
-  const availableFacts = db.facts.filter((fact) => !linkedFactIds.has(fact.id));
-  const filteredFacts = filterByName(availableFacts, factName, search);
+  const newFactSummary = search.trim();
 
   useEffect(() => {
     setDraft(stance);
-  }, [stance]);
+  }, [stance.id]);
 
-  async function saveDraft() {
-    await onSaveEntity('stances', { ...draft, date_updated: new Date().toISOString() }, electionId);
-  }
-
-  async function linkFact(fact: Fact) {
-    const link: StanceFact = { id: nextId(db.stanceFacts), stance: stance.id, fact: fact.id };
-    await onSaveEntity('stanceFacts', link, electionId);
-    setSearch('');
-    setAddOpen(false);
-  }
+  useDebouncedAutoSave(draft, (nextDraft) => onSaveEntity('stances', { ...nextDraft, date_updated: new Date().toISOString() }, electionId));
 
   async function createFact(summary: string) {
     const now = new Date().toISOString();
@@ -890,32 +932,32 @@ function StanceDetailEditor({
   return (
     <div className="stance-detail">
       <div className="stance-form-grid">
-        <label>Label<input value={draft.label ?? ''} onChange={(event) => setDraft({ ...draft, label: event.target.value || null })} /></label>
         <label>Title<input value={draft.title ?? ''} onChange={(event) => setDraft({ ...draft, title: event.target.value || null })} /></label>
         <label>Rating<input type="number" step="any" value={draft.rating ?? ''} onChange={(event) => setDraft({ ...draft, rating: event.target.value === '' ? null : Number(event.target.value) })} /></label>
         <label>Confidence<input type="number" step="any" value={draft.confidence ?? ''} onChange={(event) => setDraft({ ...draft, confidence: event.target.value === '' ? null : Number(event.target.value) })} /></label>
         <label className="wide">Description<textarea value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value || null })} /></label>
       </div>
-      <button type="button" onClick={saveDraft}><Save size={16} /> Save stance</button>
       <section className="stance-facts">
         <div className="stance-facts-heading">
           <h6>Linked facts</h6>
-          <SearchAddPopover
-            buttonLabel="Add fact"
-            createLabel="Create fact"
-            emptyText="No facts match."
-            getResultKey={(fact) => fact.id}
-            isOpen={addOpen}
-            onCreate={createFact}
-            onOpenChange={setAddOpen}
-            onSearchChange={setSearch}
-            onSelect={linkFact}
-            placeholder="Search or type a fact"
-            renderMeta={(fact) => fact.date_updated || fact.date_created || ''}
-            renderResult={factName}
-            results={filteredFacts}
-            search={search}
-          />
+          <div className="add-popover">
+            <button type="button" className="add-trigger" aria-expanded={addOpen} onClick={() => setAddOpen(!addOpen)}>
+              <Plus size={16} /> Add fact
+            </button>
+            {addOpen && (
+              <div className="add-menu">
+                <input
+                  value={search}
+                  placeholder="Type a fact summary"
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+                <button type="button" className="create-option" disabled={!newFactSummary} onClick={() => createFact(newFactSummary)}>
+                  <Plus size={16} />
+                  <span>{newFactSummary ? `Create fact "${newFactSummary}"` : 'Create fact'}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         <div className="fact-editor-list">
           {linkedRows.length === 0 && <p>No facts linked.</p>}
@@ -924,7 +966,10 @@ function StanceDetailEditor({
               fact={fact}
               key={link.id}
               onSave={(nextFact) => onSaveEntity('facts', nextFact, electionId)}
-              onUnlink={() => onDeleteEntity('stanceFacts', link.id, electionId)}
+              onDelete={async () => {
+                await onDeleteEntity('stanceFacts', link.id, electionId);
+                await onDeleteEntity('facts', fact.id, electionId);
+              }}
             />
           ))}
         </div>
@@ -933,20 +978,21 @@ function StanceDetailEditor({
   );
 }
 
-function FactInlineEditor({ fact, onSave, onUnlink }: { fact: Fact; onSave: (fact: Fact) => void; onUnlink: () => void }) {
+function FactInlineEditor({ fact, onSave, onDelete }: { fact: Fact; onSave: (fact: Fact) => void | Promise<void>; onDelete: () => void | Promise<void> }) {
   const [draft, setDraft] = useState(fact);
 
   useEffect(() => {
     setDraft(fact);
-  }, [fact]);
+  }, [fact.id]);
+
+  const autoSave = useDebouncedAutoSave(draft, (nextDraft) => onSave({ ...nextDraft, date_updated: new Date().toISOString() }));
 
   return (
     <section className="fact-inline-editor">
       <label>Summary<input value={draft.Summary ?? ''} onChange={(event) => setDraft({ ...draft, Summary: event.target.value || null })} /></label>
       <label>Description<textarea value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value || null })} /></label>
       <div className="fact-actions">
-        <button type="button" onClick={() => onSave({ ...draft, date_updated: new Date().toISOString() })}><Save size={16} /> Save fact</button>
-        <button type="button" onClick={onUnlink}><X size={16} /> Unlink</button>
+        <ConfirmableDeleteButton className="danger" onConfirm={() => { autoSave.cancel(); return onDelete(); }}>Delete</ConfirmableDeleteButton>
       </div>
     </section>
   );
@@ -971,7 +1017,7 @@ function FieldInput({
   onCreateCandidate: (name: string) => Promise<Id>;
   onCreateIssue: (name: string) => Promise<Id>;
   onCreateContest: (name: string, electionId: Id) => Promise<Contest>;
-  onSaveContest: (contest: Contest) => void;
+  onSaveContest: (contest: Contest) => void | Promise<void>;
   onDeleteContest: (id: Id) => void;
   onChange: (value: unknown) => void;
 }) {
@@ -1028,7 +1074,7 @@ function ElectionContestEditor({
   electionId: Id;
   onCreateCandidate: (name: string) => Promise<Id>;
   onCreateContest: (name: string, electionId: Id) => Promise<Contest>;
-  onSaveContest: (contest: Contest) => void;
+  onSaveContest: (contest: Contest) => void | Promise<void>;
   onDeleteContest: (id: Id) => void;
 }) {
   const [addOpen, setAddOpen] = useState(false);
@@ -1092,7 +1138,7 @@ function ContestEditor({
   candidates: Candidate[];
   contest: Contest;
   onCreateCandidate: (name: string) => Promise<Id>;
-  onSaveContest: (contest: Contest) => void;
+  onSaveContest: (contest: Contest) => void | Promise<void>;
   onDeleteContest: (id: Id) => void;
 }) {
   const [draft, setDraft] = useState(contest);
@@ -1104,11 +1150,12 @@ function ContestEditor({
 
   useEffect(() => {
     setDraft(contest);
-  }, [contest]);
+  }, [contest.id]);
+
+  const autoSave = useDebouncedAutoSave(draft, onSaveContest);
 
   function updateContest(nextContest: Contest) {
     setDraft(nextContest);
-    onSaveContest(nextContest);
   }
 
   async function addCandidate(name: string) {
@@ -1126,7 +1173,7 @@ function ContestEditor({
           value={draft.name}
           onChange={(event) => updateContest({ ...draft, name: event.target.value })}
         />
-        <ConfirmableDeleteButton className="danger" aria-label={`Delete ${draft.name}`} onConfirm={() => onDeleteContest(draft.id)} />
+        <ConfirmableDeleteButton className="danger" aria-label={`Delete ${draft.name}`} onConfirm={() => { autoSave.cancel(); onDeleteContest(draft.id); }} />
       </div>
       <div className="included-list">
         {included.length === 0 && <p>No candidates selected.</p>}

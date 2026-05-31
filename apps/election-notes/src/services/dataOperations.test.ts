@@ -158,6 +158,39 @@ function createLegacyElectionUpdatedDatabase(): Promise<void> {
   });
 }
 
+function createLegacyStanceDatabase(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(databaseName, 8);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore('stances', { keyPath: 'id' });
+    };
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const transaction = db.transaction('stances', 'readwrite');
+      transaction.objectStore('stances').put({
+        id: 1,
+        date_created: null,
+        date_updated: null,
+        title: 'Legacy stance',
+        candidate: null,
+        issue: null,
+        rating: null,
+        points: 12,
+        confidence: null,
+        label: 'Legacy label',
+        description: null
+      });
+      transaction.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    };
+  });
+}
+
 beforeEach(async () => {
   vi.unstubAllGlobals();
   vi.stubGlobal('localStorage', createLocalStorage());
@@ -170,7 +203,7 @@ describe.sequential('IndexedDB repository data operations', () => {
     const db = await openDatabase();
     try {
       expect(db.name).toBe(databaseName);
-      expect(db.version).toBe(8);
+      expect(db.version).toBe(9);
       expect(Array.from(db.objectStoreNames).sort()).toEqual([...storeNames, 'metadata'].sort());
     } finally {
       db.close();
@@ -257,6 +290,25 @@ describe.sequential('IndexedDB repository data operations', () => {
       issues: []
     }]);
   });
+
+  it('migrates legacy IndexedDB stance rows by removing stored points and labels', async () => {
+    await createLegacyStanceDatabase();
+
+    const db = await openDatabase();
+    db.close();
+
+    expect((await loadAllStores()).stances).toEqual([{
+      id: 1,
+      date_created: null,
+      date_updated: null,
+      title: 'Legacy stance',
+      candidate: null,
+      issue: null,
+      rating: null,
+      confidence: null,
+      description: null
+    }]);
+  });
 });
 
 describe.sequential('database service data operations', () => {
@@ -333,6 +385,37 @@ describe.sequential('database service data operations', () => {
     expect(validateDatabase(backup).issues).toEqual([
       { id: 1, name: 'Legacy weighted issue', description: null }
     ]);
+  });
+
+  it('normalizes legacy stance points and labels out of backups', () => {
+    const backup = {
+      ...emptyDatabase(),
+      stances: [{
+        id: 1,
+        date_created: null,
+        date_updated: null,
+        title: 'Legacy stance',
+        candidate: null,
+        issue: null,
+        rating: null,
+        points: 50,
+        confidence: null,
+        label: 'Legacy label',
+        description: null
+      }]
+    };
+
+    expect(validateDatabase(backup).stances).toEqual([{
+      id: 1,
+      date_created: null,
+      date_updated: null,
+      title: 'Legacy stance',
+      candidate: null,
+      issue: null,
+      rating: null,
+      confidence: null,
+      description: null
+    }]);
   });
 
   it('normalizes legacy election issue confidence out of backups', () => {
@@ -462,8 +545,8 @@ describe('Directus report data operations', () => {
       { id: 4, name: 'Low confidence', description: null }
     );
     data.stances.push(
-      { id: 5, date_created: null, date_updated: null, title: 'Known', candidate: 1, issue: 3, rating: 50, points: null, confidence: 88.84, label: 'Known confidence', description: null },
-      { id: 6, date_created: null, date_updated: null, title: 'Unknown', candidate: 2, issue: 4, rating: null, points: null, confidence: null, label: 'Missing confidence', description: null }
+      { id: 5, date_created: null, date_updated: null, title: 'Known confidence', candidate: 1, issue: 3, rating: 50, confidence: 88.84, description: null },
+      { id: 6, date_created: null, date_updated: null, title: 'Missing confidence', candidate: 2, issue: 4, rating: null, confidence: null, description: null }
     );
 
     const candidatesDashboard = reportDashboards.find((dashboard) => dashboard.name === 'Candidates')!;
@@ -495,8 +578,8 @@ describe('Directus report data operations', () => {
     );
     data.issues.push({ id: 10, name: 'Privacy', description: null });
     data.stances.push(
-      { id: 20, date_created: null, date_updated: null, title: null, candidate: 1, issue: 10, rating: 100, points: null, confidence: null, label: null, description: null },
-      { id: 21, date_created: null, date_updated: null, title: null, candidate: 2, issue: 10, rating: 25, points: null, confidence: null, label: null, description: null }
+      { id: 20, date_created: null, date_updated: null, title: null, candidate: 1, issue: 10, rating: 100, confidence: null, description: null },
+      { id: 21, date_created: null, date_updated: null, title: null, candidate: 2, issue: 10, rating: 25, confidence: null, description: null }
     );
     data.elections.push({ id: 30, name: 'General', date: null, date_updated: null, description: null, issues: [{ issueId: 10, points: 80 }] });
     data.contests.push({ id: 31, electionId: 30, name: 'General contest', candidateIds: [1, 2] });
@@ -520,10 +603,10 @@ describe('Directus report data operations', () => {
       { id: 11, name: 'Transit', description: null }
     );
     data.stances.push(
-      { id: 20, date_created: null, date_updated: null, title: null, candidate: 1, issue: 10, rating: 100, points: null, confidence: 80, label: 'Included', description: null },
-      { id: 21, date_created: null, date_updated: null, title: null, candidate: 2, issue: 10, rating: 50, points: null, confidence: null, label: 'Ignored null', description: null },
-      { id: 22, date_created: null, date_updated: null, title: null, candidate: 3, issue: 10, rating: 100, points: null, confidence: 20, label: 'Runoff', description: null },
-      { id: 23, date_created: null, date_updated: null, title: null, candidate: 3, issue: 11, rating: 100, points: null, confidence: 90, label: 'Excluded issue', description: null }
+      { id: 20, date_created: null, date_updated: null, title: 'Included', candidate: 1, issue: 10, rating: 100, confidence: 80, description: null },
+      { id: 21, date_created: null, date_updated: null, title: 'Ignored null', candidate: 2, issue: 10, rating: 50, confidence: null, description: null },
+      { id: 22, date_created: null, date_updated: null, title: 'Runoff', candidate: 3, issue: 10, rating: 100, confidence: 20, description: null },
+      { id: 23, date_created: null, date_updated: null, title: 'Excluded issue', candidate: 3, issue: 11, rating: 100, confidence: 90, description: null }
     );
     const election = { id: 30, name: 'General', date: null, date_updated: null, description: null, issues: [{ issueId: 10, points: 80 }] };
     data.contests.push({ id: 31, electionId: 30, name: 'General contest', candidateIds: [1, 2] });

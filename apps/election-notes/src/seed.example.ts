@@ -44,9 +44,7 @@ export const seedData: Database = {
       candidate: 1,
       issue: 1,
       rating: 80,
-      points: 80,
       confidence: 75,
-      label: 'Alex Example - Example Infrastructure: Mostly aligned',
       description: 'Dummy stance showing a candidate-to-issue relationship.'
     },
     {
@@ -57,9 +55,7 @@ export const seedData: Database = {
       candidate: 2,
       issue: 1,
       rating: 55,
-      points: 55,
       confidence: 60,
-      label: 'Jordan Sample - Example Infrastructure: Partially aligned',
       description: 'Another dummy stance for comparison.'
     }
   ],

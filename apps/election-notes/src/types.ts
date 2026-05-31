@@ -25,9 +25,7 @@ export type Stance = {
   candidate: Id | null;
   issue: Id | null;
   rating: number | null;
-  points: number | null;
   confidence: number | null;
-  label: string | null;
   description: string | null;
 };
 

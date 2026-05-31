@@ -81,8 +81,8 @@ export const reportDashboards: ReportDashboard[] = [
     icon: 'full_stacked_bar_chart',
     color: '#3399FF',
     panels: [
-      { id: 'f3229cd6-5b4c-4635-ab65-a0e203dd066d', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Confidences', type: 'ordered-bar-chart', color: '#3399FF', collection: 'stance', xAxis: 'label', yAxis: 'confidence', horizontal: true, filter: 'confidence-not-null', decimals: 1, sortField: 'confidence', sortOrder: '-' },
-      { id: '43becb8c-d286-4d2c-ab6e-eac98de8b9c1', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Missing Confidence', type: 'list', color: null, collection: 'stance', xAxis: 'label', yAxis: 'confidence', filter: 'confidence-null', sortField: 'confidence', sortOrder: '-' },
+      { id: 'f3229cd6-5b4c-4635-ab65-a0e203dd066d', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Confidences', type: 'ordered-bar-chart', color: '#3399FF', collection: 'stance', xAxis: 'title', yAxis: 'confidence', horizontal: true, filter: 'confidence-not-null', decimals: 1, sortField: 'confidence', sortOrder: '-' },
+      { id: '43becb8c-d286-4d2c-ab6e-eac98de8b9c1', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Missing Confidence', type: 'list', color: null, collection: 'stance', xAxis: 'title', yAxis: 'confidence', filter: 'confidence-null', sortField: 'confidence', sortOrder: '-' },
       { id: '2ed2444f-ca71-4b2f-86f0-5639437661c6', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Election Issue Confidences', type: 'ordered-bar-chart', color: '#6644FF', collection: 'electionIssue', xAxis: 'name', yAxis: 'confidence', horizontal: true, sortField: 'confidence', sortOrder: '-' },
       { id: '836c9762-3d1d-4733-bb08-f5b0557c47fe', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Issue Stances', type: 'ordered-bar-chart', color: '#2ECDA7', collection: 'issue', xAxis: 'name', yAxis: 'stancesCount', horizontal: true, sortField: 'stancesCount', sortOrder: '-' }
     ]
