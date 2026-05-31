@@ -541,7 +541,7 @@ textarea {
 }
 
 .issue-row {
-  grid-template-columns: minmax(0, 1fr) 8rem auto;
+  grid-template-columns: minmax(0, 1fr) 8rem 8rem auto;
 }
 
 .contest-editor-list {

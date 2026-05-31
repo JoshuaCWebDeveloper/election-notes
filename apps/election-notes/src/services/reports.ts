@@ -1,6 +1,6 @@
 import type { Candidate, Contest, Database, Election, Id, Issue, Stance } from '../types';
 
-export type ReportCollection = 'candidate' | 'issue' | 'stance';
+export type ReportCollection = 'candidate' | 'issue' | 'electionIssue' | 'stance';
 export type ReportPanelType = 'bar-chart' | 'ordered-bar-chart' | 'list' | 'candidate-contest';
 
 export type ReportDashboard = {
@@ -39,6 +39,16 @@ export type CandidateContestRow = {
   candidates: Array<{ candidate: Candidate; score: number }>;
 };
 
+type ReportRow = Candidate | Issue | Stance | ElectionIssueReportRow;
+
+type ElectionIssueReportRow = {
+  id: Id;
+  name: string | null;
+  points: number;
+  confidence: number | null;
+  stancesCount: number | null;
+};
+
 export const reportDashboards: ReportDashboard[] = [
   {
     id: 'e7fc9a1f-0c5c-40cb-8a0d-7ab9e55faa9d',
@@ -69,7 +79,7 @@ export const reportDashboards: ReportDashboard[] = [
     panels: [
       { id: 'f3229cd6-5b4c-4635-ab65-a0e203dd066d', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Confidences', type: 'ordered-bar-chart', color: '#3399FF', collection: 'stance', xAxis: 'label', yAxis: 'confidence', horizontal: true, filter: 'confidence-not-null', decimals: 1, sortField: 'confidence', sortOrder: '-' },
       { id: '43becb8c-d286-4d2c-ab6e-eac98de8b9c1', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Missing Confidence', type: 'list', color: null, collection: 'stance', xAxis: 'label', yAxis: 'confidence', filter: 'confidence-null', sortField: 'confidence', sortOrder: '-' },
-      { id: '2ed2444f-ca71-4b2f-86f0-5639437661c6', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Issue Confidences', type: 'ordered-bar-chart', color: '#6644FF', collection: 'issue', xAxis: 'name', yAxis: 'confidence', horizontal: true, sortField: 'confidence', sortOrder: '-' },
+      { id: '2ed2444f-ca71-4b2f-86f0-5639437661c6', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Election Issue Confidences', type: 'ordered-bar-chart', color: '#6644FF', collection: 'electionIssue', xAxis: 'name', yAxis: 'confidence', horizontal: true, sortField: 'confidence', sortOrder: '-' },
       { id: '836c9762-3d1d-4733-bb08-f5b0557c47fe', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Issue Stances', type: 'ordered-bar-chart', color: '#2ECDA7', collection: 'issue', xAxis: 'name', yAxis: 'stancesCount', horizontal: true, sortField: 'stancesCount', sortOrder: '-' }
     ]
   }
@@ -146,9 +156,10 @@ export function getElectionContestCount(db: Database, electionId: Id): number {
   return getElectionContests(db, electionId).length;
 }
 
-function getCollectionRows(collection: ReportCollection, db: Database, election?: Election | null, contest?: Contest | null): Array<Candidate | Issue | Stance> {
+function getCollectionRows(collection: ReportCollection, db: Database, election?: Election | null, contest?: Contest | null): ReportRow[] {
   if (!election) {
     if (collection === 'candidate') return db.candidates;
+    if (collection === 'electionIssue') return [];
     if (collection === 'issue') return db.issues;
     return db.stances;
   }
@@ -156,6 +167,18 @@ function getCollectionRows(collection: ReportCollection, db: Database, election?
   const candidateIds = new Set(contest ? contest.candidateIds : getElectionCandidateIds(db, election.id));
   const issueIds = new Set(election.issues.map((issue) => issue.issueId));
   if (collection === 'candidate') return db.candidates.filter((candidate) => candidateIds.has(candidate.id));
+  if (collection === 'electionIssue') {
+    return election.issues.flatMap((electionIssue) => {
+      const issue = db.issues.find((row) => row.id === electionIssue.issueId);
+      return issue ? [{
+        id: electionIssue.issueId,
+        name: issue.name,
+        points: electionIssue.points,
+        confidence: electionIssue.confidence,
+        stancesCount: issue.stancesCount
+      }] : [];
+    });
+  }
   if (collection === 'issue') return db.issues.filter((issue) => issueIds.has(issue.id));
   return db.stances.filter((stance) => (
     stance.candidate !== null &&
@@ -165,13 +188,14 @@ function getCollectionRows(collection: ReportCollection, db: Database, election?
   ));
 }
 
-function matchesFilter(row: Candidate | Issue | Stance, filter: ReportPanel['filter']): boolean {
-  if (filter === 'confidence-null') return row.confidence === null;
-  if (filter === 'confidence-not-null') return row.confidence !== null;
+function matchesFilter(row: ReportRow, filter: ReportPanel['filter']): boolean {
+  const confidence = readField(row, 'confidence');
+  if (filter === 'confidence-null') return confidence === null;
+  if (filter === 'confidence-not-null') return confidence !== null;
   return true;
 }
 
-function compareRows(left: Candidate | Issue | Stance, right: Candidate | Issue | Stance, field: string | undefined, order: ReportPanel['sortOrder']): number {
+function compareRows(left: ReportRow, right: ReportRow, field: string | undefined, order: ReportPanel['sortOrder']): number {
   if (!field) return 0;
   const leftValue = readField(left, field);
   const rightValue = readField(right, field);
@@ -180,7 +204,7 @@ function compareRows(left: Candidate | Issue | Stance, right: Candidate | Issue 
   return String(leftValue ?? '').localeCompare(String(rightValue ?? '')) * direction;
 }
 
-function readField(row: Candidate | Issue | Stance, field: string): string | number | null {
+function readField(row: ReportRow, field: string): string | number | null {
   return (row as unknown as Record<string, string | number | null>)[field] ?? null;
 }
 

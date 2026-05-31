@@ -35,7 +35,6 @@ const rowShape: Record<EntityKey, Record<string, ValidationRule>> = {
     id: 'requiredNumber',
     name: 'string',
     description: 'string',
-    confidence: 'number',
     stancesCount: 'number'
   },
   stances: {
@@ -194,7 +193,10 @@ export function normalizeDatabase(value: unknown): Database {
           candidateIds: candidateIds.filter((id): id is Id => typeof id === 'number')
         });
       }
-      return nextElection;
+      return {
+        ...nextElection,
+        issues: normalizeElectionIssues(election.issues)
+      };
     })
     : value.elections;
 
@@ -203,7 +205,7 @@ export function normalizeDatabase(value: unknown): Database {
     issues: Array.isArray(value.issues)
       ? value.issues.map((issue) => {
         if (!isRecord(issue)) return structuredClone(issue);
-        const { points: _points, ...nextIssue } = issue;
+        const { confidence: _confidence, points: _points, ...nextIssue } = issue;
         return nextIssue;
       })
       : structuredClone(value.issues),
@@ -218,6 +220,17 @@ export function normalizeDatabase(value: unknown): Database {
 
 function nextId(rows: { id: Id }[]) {
   return Math.max(0, ...rows.map((row) => row.id)) + 1;
+}
+
+function normalizeElectionIssues(value: unknown): unknown {
+  if (!Array.isArray(value)) return structuredClone(value);
+  return value.map((issue) => {
+    if (!isRecord(issue)) return structuredClone(issue);
+    return {
+      ...issue,
+      confidence: typeof issue.confidence === 'number' ? issue.confidence : null
+    };
+  });
 }
 
 function validateRow(storeName: EntityKey, value: unknown, index: number): void {
@@ -247,7 +260,8 @@ function isValidValue(value: unknown, rule: ValidationRule): boolean {
   if (rule === 'idArray') return Array.isArray(value) && value.every((item) => typeof item === 'number');
   return Array.isArray(value) && value.every((item) => (
     isRecord(item) &&
-    Object.keys(item).sort().join('|') === 'issueId|points' &&
+    Object.keys(item).sort().join('|') === 'confidence|issueId|points' &&
+    (item.confidence === null || typeof item.confidence === 'number') &&
     typeof item.issueId === 'number' &&
     typeof item.points === 'number'
   ));

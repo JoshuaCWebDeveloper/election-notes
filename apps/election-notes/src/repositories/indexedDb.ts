@@ -15,7 +15,7 @@ export const storeNames: StoreName[] = [
 ];
 
 const databaseName = 'election-notes';
-const databaseVersion = 4;
+const databaseVersion = 5;
 const metadataStoreName = 'metadata';
 const legacyStorageKey = 'election-notes-db-v1';
 const initializedKey = 'initialized';
@@ -55,6 +55,10 @@ export function openDatabase(): Promise<IDBDatabase> {
       }
       if (event.oldVersion > 0 && event.oldVersion < 4) {
         migrateIssueDefaultPoints(request.transaction);
+      }
+      if (event.oldVersion > 0 && event.oldVersion < 5) {
+        migrateIssueConfidence(request.transaction);
+        migrateElectionIssueConfidence(request.transaction);
       }
     };
 
@@ -108,6 +112,43 @@ function migrateIssueDefaultPoints(transaction: IDBTransaction | null): void {
     cursor.update(nextIssue);
     cursor.continue();
   };
+}
+
+function migrateIssueConfidence(transaction: IDBTransaction | null): void {
+  if (!transaction) return;
+  const issues = transaction.objectStore('issues');
+  const request = issues.openCursor();
+
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return;
+
+    const { confidence: _confidence, ...nextIssue } = cursor.value as Record<string, unknown>;
+    cursor.update(nextIssue);
+    cursor.continue();
+  };
+}
+
+function migrateElectionIssueConfidence(transaction: IDBTransaction | null): void {
+  if (!transaction) return;
+  const elections = transaction.objectStore('elections');
+  const request = elections.openCursor();
+
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return;
+
+    const election = cursor.value as Record<string, unknown>;
+    const issues = Array.isArray(election.issues)
+      ? election.issues.map((issue) => isRecord(issue) && !('confidence' in issue) ? { ...issue, confidence: null } : issue)
+      : election.issues;
+    cursor.update({ ...election, issues });
+    cursor.continue();
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export async function loadAllStores(): Promise<Database> {

@@ -45,7 +45,6 @@ export function issueFromInlineName(name: string, db: Database): Issue {
     id: nextId(db.issues),
     name: name.trim(),
     description: null,
-    confidence: null,
     stancesCount: null
   };
 }

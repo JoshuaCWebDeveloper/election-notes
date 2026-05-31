@@ -62,7 +62,7 @@ const tabs: Tab[] = [
       { key: 'date', label: 'Date', type: 'date', nullable: true },
       { key: 'description', label: 'Description', type: 'textarea', nullable: true },
       { key: 'contests', label: 'Contests', type: 'electionContests', entity: 'candidates' },
-      { key: 'issues', label: 'Election issue weights', type: 'electionIssues', entity: 'issues' }
+      { key: 'issues', label: 'Election issue weights and confidence', type: 'electionIssues', entity: 'issues' }
     ]
   },
   {
@@ -83,12 +83,11 @@ const tabs: Tab[] = [
   {
     key: 'issues',
     label: 'Issues',
-    summary: (row) => `Confidence ${formatScore((row as Issue).confidence)} with ${formatScore((row as Issue).stancesCount)} stances`,
-    blank: (db) => ({ id: nextId(db.issues), name: '', description: null, confidence: null, stancesCount: null }),
+    summary: (row) => `${formatScore((row as Issue).stancesCount)} stances`,
+    blank: (db) => ({ id: nextId(db.issues), name: '', description: null, stancesCount: null }),
     fields: [
       { key: 'name', label: 'Name', type: 'text', nullable: true },
       { key: 'description', label: 'Description', type: 'textarea', nullable: true },
-      { key: 'confidence', label: 'Confidence', type: 'number', nullable: true },
       { key: 'stancesCount', label: 'Stances count', type: 'number', nullable: true }
     ]
   },
@@ -841,20 +840,21 @@ function ElectionIssueEditor({
 
   async function addIssue(name: string) {
     const id = await onCreateIssue(name);
-    onChange([...value, { issueId: id, points: 0 }]);
+    onChange([...value, { issueId: id, points: 0, confidence: null }]);
     setSearch('');
     setAddOpen(false);
   }
 
   return (
     <fieldset className="wide included-editor">
-      <legend>Election-specific issue points</legend>
+      <legend>Election-specific issue points and confidence</legend>
       <div className="included-list">
         {included.length === 0 && <p>No issues selected.</p>}
         {included.map((item) => (
           <div className="included-row issue-row" key={item.issueId}>
             <span>{issueName(item.issue)}</span>
-            <input type="number" step="any" value={item.points} onChange={(event) => onChange(value.map((row) => row.issueId === item.issueId ? { ...row, points: Number(event.target.value) } : row))} />
+            <input aria-label={`${issueName(item.issue)} points`} type="number" step="any" value={item.points} onChange={(event) => onChange(value.map((row) => row.issueId === item.issueId ? { ...row, points: Number(event.target.value) } : row))} />
+            <input aria-label={`${issueName(item.issue)} confidence`} type="number" step="any" value={item.confidence ?? ''} onChange={(event) => onChange(value.map((row) => row.issueId === item.issueId ? { ...row, confidence: event.target.value === '' ? null : Number(event.target.value) } : row))} />
             <button type="button" aria-label={`Remove ${issueName(item.issue)}`} onClick={() => onChange(value.filter((row) => row.issueId !== item.issueId))}><X size={16} /></button>
           </div>
         ))}
@@ -870,10 +870,10 @@ function ElectionIssueEditor({
         results={filtered}
         getResultKey={(issue) => issue.id}
         renderResult={(issue) => issueName(issue)}
-        renderMeta={(issue) => `${formatScore(issue.confidence)} confidence`}
+        renderMeta={(issue) => `${formatScore(issue.stancesCount)} stances`}
         emptyText="No available issues match."
         onSelect={(issue) => {
-          onChange([...value, { issueId: issue.id, points: 0 }]);
+          onChange([...value, { issueId: issue.id, points: 0, confidence: null }]);
           setSearch('');
           setAddOpen(false);
         }}
