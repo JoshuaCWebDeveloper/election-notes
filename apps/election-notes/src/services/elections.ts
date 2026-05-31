@@ -6,12 +6,17 @@ export function nextId(rows: { id: Id }[]) {
 
 export function duplicateElection(election: Election, db: Database): Election {
   const copiedDate = election.date ? bumpDateByOneDay(election.date) : null;
+  const { issues, ...rest } = structuredClone(election) as Election & { issues: Array<Election['issues'][number] & { confidence?: unknown }> };
   return {
-    ...structuredClone(election),
+    ...rest,
     id: nextId(db.elections),
     name: copyName(election.name),
     date: copiedDate,
-    description: election.description ? `Copied from ${election.name}.\n\n${election.description}` : `Copied from ${election.name}.`
+    description: election.description ? `Copied from ${election.name}.\n\n${election.description}` : `Copied from ${election.name}.`,
+    issues: issues.map((issue) => {
+      const { confidence: _confidence, ...nextIssue } = issue as Election['issues'][number] & { confidence?: unknown };
+      return nextIssue;
+    })
   };
 }
 
@@ -44,8 +49,7 @@ export function issueFromInlineName(name: string, db: Database): Issue {
   return {
     id: nextId(db.issues),
     name: name.trim(),
-    description: null,
-    stancesCount: null
+    description: null
   };
 }
 

@@ -34,8 +34,7 @@ const rowShape: Record<EntityKey, Record<string, ValidationRule>> = {
   issues: {
     id: 'requiredNumber',
     name: 'string',
-    description: 'string',
-    stancesCount: 'number'
+    description: 'string'
   },
   stances: {
     id: 'requiredNumber',
@@ -205,7 +204,7 @@ export function normalizeDatabase(value: unknown): Database {
     issues: Array.isArray(value.issues)
       ? value.issues.map((issue) => {
         if (!isRecord(issue)) return structuredClone(issue);
-        const { confidence: _confidence, points: _points, ...nextIssue } = issue;
+        const { confidence: _confidence, points: _points, stancesCount: _stancesCount, ...nextIssue } = issue;
         return nextIssue;
       })
       : structuredClone(value.issues),
@@ -226,10 +225,8 @@ function normalizeElectionIssues(value: unknown): unknown {
   if (!Array.isArray(value)) return structuredClone(value);
   return value.map((issue) => {
     if (!isRecord(issue)) return structuredClone(issue);
-    return {
-      ...issue,
-      confidence: typeof issue.confidence === 'number' ? issue.confidence : null
-    };
+    const { confidence: _confidence, ...nextIssue } = issue;
+    return nextIssue;
   });
 }
 
@@ -260,8 +257,7 @@ function isValidValue(value: unknown, rule: ValidationRule): boolean {
   if (rule === 'idArray') return Array.isArray(value) && value.every((item) => typeof item === 'number');
   return Array.isArray(value) && value.every((item) => (
     isRecord(item) &&
-    Object.keys(item).sort().join('|') === 'confidence|issueId|points' &&
-    (item.confidence === null || typeof item.confidence === 'number') &&
+    Object.keys(item).sort().join('|') === 'issueId|points' &&
     typeof item.issueId === 'number' &&
     typeof item.points === 'number'
   ));

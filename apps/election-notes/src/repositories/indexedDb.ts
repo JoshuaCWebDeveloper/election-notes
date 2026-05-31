@@ -15,7 +15,7 @@ export const storeNames: StoreName[] = [
 ];
 
 const databaseName = 'election-notes';
-const databaseVersion = 5;
+const databaseVersion = 7;
 const metadataStoreName = 'metadata';
 const legacyStorageKey = 'election-notes-db-v1';
 const initializedKey = 'initialized';
@@ -58,6 +58,11 @@ export function openDatabase(): Promise<IDBDatabase> {
       }
       if (event.oldVersion > 0 && event.oldVersion < 5) {
         migrateIssueConfidence(request.transaction);
+      }
+      if (event.oldVersion > 0 && event.oldVersion < 6) {
+        migrateIssueStancesCount(request.transaction);
+      }
+      if (event.oldVersion > 0 && event.oldVersion < 7) {
         migrateElectionIssueConfidence(request.transaction);
       }
     };
@@ -129,6 +134,21 @@ function migrateIssueConfidence(transaction: IDBTransaction | null): void {
   };
 }
 
+function migrateIssueStancesCount(transaction: IDBTransaction | null): void {
+  if (!transaction) return;
+  const issues = transaction.objectStore('issues');
+  const request = issues.openCursor();
+
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return;
+
+    const { stancesCount: _stancesCount, ...nextIssue } = cursor.value as Record<string, unknown>;
+    cursor.update(nextIssue);
+    cursor.continue();
+  };
+}
+
 function migrateElectionIssueConfidence(transaction: IDBTransaction | null): void {
   if (!transaction) return;
   const elections = transaction.objectStore('elections');
@@ -140,7 +160,11 @@ function migrateElectionIssueConfidence(transaction: IDBTransaction | null): voi
 
     const election = cursor.value as Record<string, unknown>;
     const issues = Array.isArray(election.issues)
-      ? election.issues.map((issue) => isRecord(issue) && !('confidence' in issue) ? { ...issue, confidence: null } : issue)
+      ? election.issues.map((issue) => {
+        if (!isRecord(issue)) return issue;
+        const { confidence: _confidence, ...nextIssue } = issue;
+        return nextIssue;
+      })
       : election.issues;
     cursor.update({ ...election, issues });
     cursor.continue();

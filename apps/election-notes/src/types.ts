@@ -15,7 +15,6 @@ export type Issue = {
   id: Id;
   name: string | null;
   description: string | null;
-  stancesCount: number | null;
 };
 
 export type Stance = {
@@ -60,7 +59,6 @@ export type First = {
 export type ElectionIssue = {
   issueId: Id;
   points: number;
-  confidence: number | null;
 };
 
 export type Election = {

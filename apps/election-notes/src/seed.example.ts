@@ -27,14 +27,12 @@ export const seedData: Database = {
     {
       id: 1,
       name: 'Example Infrastructure',
-      description: 'Dummy issue for local development seeds.',
-      stancesCount: 2
+      description: 'Dummy issue for local development seeds.'
     },
     {
       id: 2,
       name: 'Example Education',
-      description: 'Second dummy issue with a different election weight.',
-      stancesCount: 0
+      description: 'Second dummy issue with a different election weight.'
     }
   ],
   stances: [
@@ -102,13 +100,11 @@ export const seedData: Database = {
       issues: [
         {
           issueId: 1,
-          points: 125,
-          confidence: 75
+          points: 125
         },
         {
           issueId: 2,
-          points: 75,
-          confidence: 60
+          points: 75
         }
       ]
     }

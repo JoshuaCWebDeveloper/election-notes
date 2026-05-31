@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Copy, Download, Plus, RotateCcw, Save, Trash2, Upload, X } from 'lucide-react';
 import { canRestoreSeedData, createBackupJson, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
 import { candidateFromInlineName, contestFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
-import { getCandidateContestRows, getElectionCandidateCount, getElectionContestCount, getElectionContests, getReportPanelData, reportDashboards, type ReportDatum, type ReportPanel } from './services/reports';
+import { averageIssueConfidence, countIssueStances, getCandidateContestRows, getElectionCandidateCount, getElectionContestCount, getElectionContests, getReportPanelData, reportDashboards, type ReportDatum, type ReportPanel } from './services/reports';
 import type { Candidate, Contest, Database, Election, ElectionIssue, Fact, First, Id, Issue, Stance, StanceFact } from './types';
 
 type Tab = {
@@ -62,7 +62,7 @@ const tabs: Tab[] = [
       { key: 'date', label: 'Date', type: 'date', nullable: true },
       { key: 'description', label: 'Description', type: 'textarea', nullable: true },
       { key: 'contests', label: 'Contests', type: 'electionContests', entity: 'candidates' },
-      { key: 'issues', label: 'Election issue weights and confidence', type: 'electionIssues', entity: 'issues' }
+      { key: 'issues', label: 'Election issue weights', type: 'electionIssues', entity: 'issues' }
     ]
   },
   {
@@ -83,12 +83,11 @@ const tabs: Tab[] = [
   {
     key: 'issues',
     label: 'Issues',
-    summary: (row, db) => `${formatScore((row as Issue).stancesCount)} stances, ${getIssueElectionCount(db, (row as Issue).id)} elections`,
-    blank: (db) => ({ id: nextId(db.issues), name: '', description: null, stancesCount: null }),
+    summary: (row, db) => `${formatScore(countIssueStances(db, (row as Issue).id))} stances, ${getIssueElectionCount(db, (row as Issue).id)} elections`,
+    blank: (db) => ({ id: nextId(db.issues), name: '', description: null }),
     fields: [
       { key: 'name', label: 'Name', type: 'text', nullable: true },
-      { key: 'description', label: 'Description', type: 'textarea', nullable: true },
-      { key: 'stancesCount', label: 'Stances count', type: 'number', nullable: true }
+      { key: 'description', label: 'Description', type: 'textarea', nullable: true }
     ]
   },
   {
@@ -674,7 +673,7 @@ function FieldInput({
     );
   }
   if (field.type === 'electionIssues') {
-    return <ElectionIssueEditor issues={db.issues} value={value as ElectionIssue[] ?? []} onCreateIssue={onCreateIssue} onChange={onChange} />;
+    return <ElectionIssueEditor db={db} electionId={electionId} issues={db.issues} value={value as ElectionIssue[] ?? []} onCreateIssue={onCreateIssue} onChange={onChange} />;
   }
   return <label>{field.label}<input value={textValue} onChange={(event) => onChange(nullable(event.target.value, field))} /></label>;
 }
@@ -826,11 +825,15 @@ function ContestEditor({
 }
 
 function ElectionIssueEditor({
+  db,
+  electionId,
   issues,
   value,
   onCreateIssue,
   onChange
 }: {
+  db: Database;
+  electionId: Id | null;
   issues: Issue[];
   value: ElectionIssue[];
   onCreateIssue: (name: string) => Promise<Id>;
@@ -845,17 +848,18 @@ function ElectionIssueEditor({
   const selected = new Set(value.map((item) => item.issueId));
   const available = issues.filter((issue) => !selected.has(issue.id));
   const filtered = filterByName(available, issueName, search);
+  const candidateIds = electionId === null ? undefined : new Set(getElectionContests(db, electionId).flatMap((contest) => contest.candidateIds));
 
   async function addIssue(name: string) {
     const id = await onCreateIssue(name);
-    onChange([...value, { issueId: id, points: 0, confidence: null }]);
+    onChange([...value, { issueId: id, points: 0 }]);
     setSearch('');
     setAddOpen(false);
   }
 
   return (
     <fieldset className="wide included-editor">
-      <legend>Election-specific issue points and confidence</legend>
+      <legend>Election-specific issue points</legend>
       <div className="included-list">
         {included.length === 0 && <p>No issues selected.</p>}
         {included.map((item) => (
@@ -863,14 +867,11 @@ function ElectionIssueEditor({
             <div className="issue-card-copy">
               <strong>{issueName(item.issue)}</strong>
               <span>{item.issue?.description || 'No description.'}</span>
+              <span>Computed confidence: {formatScore(averageIssueConfidence(db, item.issueId, candidateIds))}</span>
             </div>
             <label>
               Points
               <input aria-label={`${issueName(item.issue)} points`} type="number" step="any" value={item.points} onChange={(event) => onChange(value.map((row) => row.issueId === item.issueId ? { ...row, points: Number(event.target.value) } : row))} />
-            </label>
-            <label>
-              Confidence
-              <input aria-label={`${issueName(item.issue)} confidence`} type="number" step="any" value={item.confidence ?? ''} onChange={(event) => onChange(value.map((row) => row.issueId === item.issueId ? { ...row, confidence: event.target.value === '' ? null : Number(event.target.value) } : row))} />
             </label>
             <button type="button" aria-label={`Remove ${issueName(item.issue)}`} onClick={() => onChange(value.filter((row) => row.issueId !== item.issueId))}><X size={16} /></button>
           </div>
@@ -887,10 +888,10 @@ function ElectionIssueEditor({
         results={filtered}
         getResultKey={(issue) => issue.id}
         renderResult={(issue) => issueName(issue)}
-        renderMeta={(issue) => `${formatScore(issue.stancesCount)} stances`}
+        renderMeta={(issue) => `${formatScore(countIssueStances(db, issue.id))} stances`}
         emptyText="No available issues match."
         onSelect={(issue) => {
-          onChange([...value, { issueId: issue.id, points: 0, confidence: null }]);
+          onChange([...value, { issueId: issue.id, points: 0 }]);
           setSearch('');
           setAddOpen(false);
         }}

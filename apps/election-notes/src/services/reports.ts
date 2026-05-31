@@ -39,14 +39,18 @@ export type CandidateContestRow = {
   candidates: Array<{ candidate: Candidate; score: number }>;
 };
 
-type ReportRow = Candidate | Issue | Stance | ElectionIssueReportRow;
+type ReportRow = Candidate | IssueReportRow | Stance | ElectionIssueReportRow;
+
+type IssueReportRow = Issue & {
+  stancesCount: number;
+};
 
 type ElectionIssueReportRow = {
   id: Id;
   name: string | null;
   points: number;
   confidence: number | null;
-  stancesCount: number | null;
+  stancesCount: number;
 };
 
 export const reportDashboards: ReportDashboard[] = [
@@ -160,7 +164,7 @@ function getCollectionRows(collection: ReportCollection, db: Database, election?
   if (!election) {
     if (collection === 'candidate') return db.candidates;
     if (collection === 'electionIssue') return [];
-    if (collection === 'issue') return db.issues;
+    if (collection === 'issue') return db.issues.map((issue) => withIssueStanceCount(issue, db));
     return db.stances;
   }
 
@@ -174,18 +178,58 @@ function getCollectionRows(collection: ReportCollection, db: Database, election?
         id: electionIssue.issueId,
         name: issue.name,
         points: electionIssue.points,
-        confidence: electionIssue.confidence,
-        stancesCount: issue.stancesCount
+        confidence: averageIssueConfidence(db, electionIssue.issueId, candidateIds),
+        stancesCount: countIssueStances(db, electionIssue.issueId, { issueIds, candidateIds })
       }] : [];
     });
   }
-  if (collection === 'issue') return db.issues.filter((issue) => issueIds.has(issue.id));
+  if (collection === 'issue') {
+    return db.issues
+      .filter((issue) => issueIds.has(issue.id))
+      .map((issue) => withIssueStanceCount(issue, db, { issueIds, candidateIds }));
+  }
   return db.stances.filter((stance) => (
     stance.candidate !== null &&
     stance.issue !== null &&
     candidateIds.has(stance.candidate) &&
     issueIds.has(stance.issue)
   ));
+}
+
+export function countIssueStances(
+  db: Database,
+  issueId: Id,
+  context?: { issueIds?: Set<Id>; candidateIds?: Set<Id> }
+): number {
+  return db.stances.filter((stance) => (
+    stance.issue === issueId &&
+    (!context?.issueIds || context.issueIds.has(stance.issue)) &&
+    (!context?.candidateIds || (stance.candidate !== null && context.candidateIds.has(stance.candidate)))
+  )).length;
+}
+
+export function averageIssueConfidence(db: Database, issueId: Id, candidateIds?: Set<Id>): number | null {
+  const confidences = db.stances
+    .filter((stance) => (
+      stance.issue === issueId &&
+      typeof stance.confidence === 'number' &&
+      !Number.isNaN(stance.confidence) &&
+      (!candidateIds || (stance.candidate !== null && candidateIds.has(stance.candidate)))
+    ))
+    .map((stance) => stance.confidence as number);
+  if (confidences.length === 0) return null;
+  return confidences.reduce((total, confidence) => total + confidence, 0) / confidences.length;
+}
+
+function withIssueStanceCount(
+  issue: Issue,
+  db: Database,
+  context?: { issueIds?: Set<Id>; candidateIds?: Set<Id> }
+): IssueReportRow {
+  return {
+    ...issue,
+    stancesCount: countIssueStances(db, issue.id, context)
+  };
 }
 
 function matchesFilter(row: ReportRow, filter: ReportPanel['filter']): boolean {
