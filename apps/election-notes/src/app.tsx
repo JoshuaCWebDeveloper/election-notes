@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Copy, Download, Plus, RotateCcw, Save, Trash2, Upload, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
+import { ChevronDown, ChevronRight, Copy, Download, Plus, RotateCcw, Save, Trash2, Upload, X } from 'lucide-react';
 import { canRestoreSeedData, createBackupJson, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
 import { candidateFromInlineName, contestFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
 import { averageIssueConfidence, countIssueStances, getCandidateContestRows, getElectionCandidateCount, getElectionContestCount, getElectionContests, getReportPanelData, reportDashboards, type ReportDatum, type ReportPanel } from './services/reports';
@@ -20,6 +20,53 @@ type Field = {
   entity?: EntityKey;
   nullable?: boolean;
 };
+
+type ConfirmableDeleteButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onClick'> & {
+  onConfirm: () => void | Promise<void>;
+};
+
+function ConfirmableDeleteButton({ children, className, onConfirm, type = 'button', ...props }: ConfirmableDeleteButtonProps) {
+  const [armed, setArmed] = useState(false);
+  const timerRef = useRef<number | null>(null);
+
+  function clearArmTimer() {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }
+
+  function arm() {
+    clearArmTimer();
+    setArmed(true);
+    timerRef.current = window.setTimeout(() => {
+      setArmed(false);
+      timerRef.current = null;
+    }, 3000);
+  }
+
+  useEffect(() => clearArmTimer, []);
+
+  return (
+    <button
+      {...props}
+      type={type}
+      className={['confirmable-delete', className, armed ? 'armed' : ''].filter(Boolean).join(' ')}
+      onClick={() => {
+        if (!armed) {
+          arm();
+          return;
+        }
+        clearArmTimer();
+        setArmed(false);
+        void onConfirm();
+      }}
+    >
+      <Trash2 className="confirmable-delete-icon" size={16} />
+      {children}
+    </button>
+  );
+}
 
 function candidateName(candidate?: Candidate | null) {
   if (!candidate) return 'Unassigned';
@@ -204,6 +251,27 @@ export function App() {
     });
   }
 
+  async function saveToElectionStore<TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number], electionId: Id) {
+    if (!db) return;
+    const election = db.elections.find((item) => item.id === electionId);
+    const touchedElection = election ? withUpdatedDate(election) : null;
+    await saveEntity(storeName, row);
+    if (touchedElection) await saveEntity('elections', touchedElection);
+    setDb((current) => {
+      if (!current) return current;
+      const nextRows = current[storeName].some((item) => item.id === row.id)
+        ? current[storeName].map((item) => item.id === row.id ? row : item)
+        : [...current[storeName], row];
+      return {
+        ...current,
+        [storeName]: nextRows,
+        elections: touchedElection
+          ? current.elections.map((item) => item.id === touchedElection.id ? touchedElection : item)
+          : current.elections
+      };
+    });
+  }
+
   async function deleteFromStore<TStore extends EntityKey>(storeName: TStore, id: Id) {
     if (!db) return;
     const deletedContest = storeName === 'contests' ? db.contests.find((contest) => contest.id === id) ?? null : null;
@@ -217,6 +285,24 @@ export function App() {
         [storeName]: current[storeName].filter((item) => item.id !== id),
         elections: touchedElection
           ? current.elections.map((election) => election.id === touchedElection.id ? touchedElection : election)
+          : current.elections
+      };
+    });
+  }
+
+  async function deleteFromElectionStore<TStore extends EntityKey>(storeName: TStore, id: Id, electionId: Id) {
+    if (!db) return;
+    const election = db.elections.find((item) => item.id === electionId);
+    const touchedElection = election ? withUpdatedDate(election) : null;
+    await deleteEntity(storeName, id);
+    if (touchedElection) await saveEntity('elections', touchedElection);
+    setDb((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        [storeName]: current[storeName].filter((item) => item.id !== id),
+        elections: touchedElection
+          ? current.elections.map((item) => item.id === touchedElection.id ? touchedElection : item)
           : current.elections
       };
     });
@@ -400,6 +486,8 @@ export function App() {
             }}
             onSaveContest={(contest) => saveToStore('contests', contest)}
             onDeleteContest={(id) => deleteFromStore('contests', id)}
+            onSaveElectionStore={saveToElectionStore}
+            onDeleteElectionStore={deleteFromElectionStore}
             onSave={save}
             onDelete={remove}
           />
@@ -557,6 +645,8 @@ function Editor({
   onCreateContest,
   onSaveContest,
   onDeleteContest,
+  onSaveElectionStore,
+  onDeleteElectionStore,
   onSave,
   onDelete
 }: {
@@ -568,10 +658,13 @@ function Editor({
   onCreateContest: (name: string, electionId: Id) => Promise<Contest>;
   onSaveContest: (contest: Contest) => void;
   onDeleteContest: (id: Id) => void;
+  onSaveElectionStore: <TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number], electionId: Id) => Promise<void>;
+  onDeleteElectionStore: <TStore extends EntityKey>(storeName: TStore, id: Id, electionId: Id) => Promise<void>;
   onSave: (row: Database[EntityKey][number]) => void;
   onDelete: (id: Id) => void;
 }) {
   const [draft, setDraft] = useState(row);
+  const [expandedCandidateId, setExpandedCandidateId] = useState<Id | null>(null);
   const contestScores = useMemo(() => tab.key === 'elections' ? getCandidateContestRows(db, draft as Election) : [], [db, draft, tab.key]);
 
   function update(key: string, value: unknown) {
@@ -587,7 +680,7 @@ function Editor({
         </div>
         <div className="actions">
           <button type="submit"><Save size={16} /> Save</button>
-          <button type="button" className="danger" onClick={() => onDelete(draft.id)}><Trash2 size={16} /> Delete</button>
+          <ConfirmableDeleteButton className="danger" onConfirm={() => onDelete(draft.id)}>Delete</ConfirmableDeleteButton>
         </div>
       </div>
       <div className="form-grid">
@@ -618,12 +711,30 @@ function Editor({
                   <strong>{contestScore.contest?.name ?? 'Legacy candidate scores'}</strong>
                   <div className="score-grid">
                     {contestScore.candidates.map((score) => (
-                      <div key={score.candidate.id}>
-                        <strong>{candidateName(score.candidate)}</strong>
-                        <span>{formatScore(score.score)} points</span>
-                      </div>
+                      <button
+                        className={expandedCandidateId === score.candidate.id ? 'score-card expanded' : 'score-card'}
+                        key={score.candidate.id}
+                        type="button"
+                        onClick={() => setExpandedCandidateId(expandedCandidateId === score.candidate.id ? null : score.candidate.id)}
+                      >
+                        {expandedCandidateId === score.candidate.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        <span>
+                          <strong>{candidateName(score.candidate)}</strong>
+                          <b>{formatScore(score.score)} points</b>
+                        </span>
+                      </button>
                     ))}
                   </div>
+                  {contestScore.candidates.map((score) => expandedCandidateId === score.candidate.id ? (
+                    <CandidateStanceEditor
+                      candidate={score.candidate}
+                      db={db}
+                      election={draft as Election}
+                      key={`stances-${score.candidate.id}`}
+                      onDeleteEntity={onDeleteElectionStore}
+                      onSaveEntity={onSaveElectionStore}
+                    />
+                  ) : null)}
                 </div>
               ))}
             </div>
@@ -632,6 +743,205 @@ function Editor({
         </>
       )}
     </form>
+  );
+}
+
+function CandidateStanceEditor({
+  candidate,
+  db,
+  election,
+  onSaveEntity,
+  onDeleteEntity
+}: {
+  candidate: Candidate;
+  db: Database;
+  election: Election;
+  onSaveEntity: <TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number], electionId: Id) => Promise<void>;
+  onDeleteEntity: <TStore extends EntityKey>(storeName: TStore, id: Id, electionId: Id) => Promise<void>;
+}) {
+  const [expandedStanceId, setExpandedStanceId] = useState<Id | null>(null);
+  const electionIssues = election.issues
+    .map((electionIssue) => ({
+      electionIssue,
+      issue: db.issues.find((issue) => issue.id === electionIssue.issueId) ?? null,
+      stance: db.stances.find((stance) => stance.candidate === candidate.id && stance.issue === electionIssue.issueId) ?? null
+    }))
+    .filter((item) => item.issue !== null);
+
+  async function createStance(issueId: Id) {
+    const now = new Date().toISOString();
+    const stance: Stance = {
+      id: nextId(db.stances),
+      date_created: now,
+      date_updated: now,
+      title: '',
+      candidate: candidate.id,
+      issue: issueId,
+      rating: null,
+      points: null,
+      confidence: null,
+      label: null,
+      description: null
+    };
+    await onSaveEntity('stances', stance, election.id);
+    setExpandedStanceId(stance.id);
+  }
+
+  return (
+    <section className="candidate-stance-panel">
+      <h5>{candidateName(candidate)} stances</h5>
+      <div className="stance-list">
+        {electionIssues.length === 0 && <p>No election issues selected.</p>}
+        {electionIssues.map(({ electionIssue, issue, stance }) => {
+          const isExpanded = stance !== null && expandedStanceId === stance.id;
+          return (
+            <article className="stance-row" key={electionIssue.issueId}>
+              <div className="stance-row-summary">
+                <button
+                  type="button"
+                  disabled={!stance}
+                  onClick={() => stance && setExpandedStanceId(isExpanded ? null : stance.id)}
+                >
+                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  <span>
+                    <strong>{issueName(issue)}</strong>
+                    <small>{stance ? `${stanceName(stance)} · rating ${formatScore(stance.rating)} · confidence ${formatScore(stance.confidence)}` : 'No stance yet'}</small>
+                  </span>
+                </button>
+                {!stance && (
+                  <button type="button" onClick={() => createStance(electionIssue.issueId)}>
+                    <Plus size={16} /> Create stance
+                  </button>
+                )}
+              </div>
+              {stance && isExpanded && (
+                <StanceDetailEditor
+                  db={db}
+                  electionId={election.id}
+                  onDeleteEntity={onDeleteEntity}
+                  onSaveEntity={onSaveEntity}
+                  stance={stance}
+                />
+              )}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function StanceDetailEditor({
+  db,
+  electionId,
+  stance,
+  onSaveEntity,
+  onDeleteEntity
+}: {
+  db: Database;
+  electionId: Id;
+  stance: Stance;
+  onSaveEntity: <TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number], electionId: Id) => Promise<void>;
+  onDeleteEntity: <TStore extends EntityKey>(storeName: TStore, id: Id, electionId: Id) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState(stance);
+  const [addOpen, setAddOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const linkedRows = db.stanceFacts
+    .filter((link) => link.stance === stance.id)
+    .map((link) => ({ link, fact: db.facts.find((fact) => fact.id === link.fact) ?? null }))
+    .filter((item): item is { link: StanceFact; fact: Fact } => item.fact !== null);
+  const linkedFactIds = new Set(linkedRows.map((item) => item.fact.id));
+  const availableFacts = db.facts.filter((fact) => !linkedFactIds.has(fact.id));
+  const filteredFacts = filterByName(availableFacts, factName, search);
+
+  useEffect(() => {
+    setDraft(stance);
+  }, [stance]);
+
+  async function saveDraft() {
+    await onSaveEntity('stances', { ...draft, date_updated: new Date().toISOString() }, electionId);
+  }
+
+  async function linkFact(fact: Fact) {
+    const link: StanceFact = { id: nextId(db.stanceFacts), stance: stance.id, fact: fact.id };
+    await onSaveEntity('stanceFacts', link, electionId);
+    setSearch('');
+    setAddOpen(false);
+  }
+
+  async function createFact(summary: string) {
+    const now = new Date().toISOString();
+    const fact: Fact = { id: nextId(db.facts), date_created: now, date_updated: now, Summary: summary, description: null };
+    const link: StanceFact = { id: nextId(db.stanceFacts), stance: stance.id, fact: fact.id };
+    await onSaveEntity('facts', fact, electionId);
+    await onSaveEntity('stanceFacts', link, electionId);
+    setSearch('');
+    setAddOpen(false);
+  }
+
+  return (
+    <div className="stance-detail">
+      <div className="stance-form-grid">
+        <label>Label<input value={draft.label ?? ''} onChange={(event) => setDraft({ ...draft, label: event.target.value || null })} /></label>
+        <label>Title<input value={draft.title ?? ''} onChange={(event) => setDraft({ ...draft, title: event.target.value || null })} /></label>
+        <label>Rating<input type="number" step="any" value={draft.rating ?? ''} onChange={(event) => setDraft({ ...draft, rating: event.target.value === '' ? null : Number(event.target.value) })} /></label>
+        <label>Confidence<input type="number" step="any" value={draft.confidence ?? ''} onChange={(event) => setDraft({ ...draft, confidence: event.target.value === '' ? null : Number(event.target.value) })} /></label>
+        <label className="wide">Description<textarea value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value || null })} /></label>
+      </div>
+      <button type="button" onClick={saveDraft}><Save size={16} /> Save stance</button>
+      <section className="stance-facts">
+        <div className="stance-facts-heading">
+          <h6>Linked facts</h6>
+          <SearchAddPopover
+            buttonLabel="Add fact"
+            createLabel="Create fact"
+            emptyText="No facts match."
+            getResultKey={(fact) => fact.id}
+            isOpen={addOpen}
+            onCreate={createFact}
+            onOpenChange={setAddOpen}
+            onSearchChange={setSearch}
+            onSelect={linkFact}
+            placeholder="Search or type a fact"
+            renderMeta={(fact) => fact.date_updated || fact.date_created || ''}
+            renderResult={factName}
+            results={filteredFacts}
+            search={search}
+          />
+        </div>
+        <div className="fact-editor-list">
+          {linkedRows.length === 0 && <p>No facts linked.</p>}
+          {linkedRows.map(({ link, fact }) => (
+            <FactInlineEditor
+              fact={fact}
+              key={link.id}
+              onSave={(nextFact) => onSaveEntity('facts', nextFact, electionId)}
+              onUnlink={() => onDeleteEntity('stanceFacts', link.id, electionId)}
+            />
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function FactInlineEditor({ fact, onSave, onUnlink }: { fact: Fact; onSave: (fact: Fact) => void; onUnlink: () => void }) {
+  const [draft, setDraft] = useState(fact);
+
+  useEffect(() => {
+    setDraft(fact);
+  }, [fact]);
+
+  return (
+    <section className="fact-inline-editor">
+      <label>Summary<input value={draft.Summary ?? ''} onChange={(event) => setDraft({ ...draft, Summary: event.target.value || null })} /></label>
+      <label>Description<textarea value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value || null })} /></label>
+      <div className="fact-actions">
+        <button type="button" onClick={() => onSave({ ...draft, date_updated: new Date().toISOString() })}><Save size={16} /> Save fact</button>
+        <button type="button" onClick={onUnlink}><X size={16} /> Unlink</button>
+      </div>
+    </section>
   );
 }
 
@@ -809,7 +1119,7 @@ function ContestEditor({
           value={draft.name}
           onChange={(event) => updateContest({ ...draft, name: event.target.value })}
         />
-        <button type="button" className="danger" aria-label={`Delete ${draft.name}`} onClick={() => onDeleteContest(draft.id)}><Trash2 size={16} /></button>
+        <ConfirmableDeleteButton className="danger" aria-label={`Delete ${draft.name}`} onConfirm={() => onDeleteContest(draft.id)} />
       </div>
       <div className="included-list">
         {included.length === 0 && <p>No candidates selected.</p>}
