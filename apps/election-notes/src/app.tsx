@@ -388,11 +388,15 @@ export function App() {
   async function save(row: Database[EntityKey][number]) {
     if (!db) return;
     const rowToSave = active.key === 'elections' ? withUpdatedDate(row as Election) : row;
-    const nextRows = rows.some((item) => item.id === row.id)
-      ? rows.map((item) => item.id === row.id ? rowToSave : item)
-      : [...rows, rowToSave];
     await saveEntity(active.key, rowToSave);
-    setDb({ ...db, [active.key]: nextRows });
+    setDb((current) => {
+      if (!current) return current;
+      const currentRows = current[active.key];
+      const nextRows = currentRows.some((item) => item.id === row.id)
+        ? currentRows.map((item) => item.id === row.id ? rowToSave : item)
+        : [...currentRows, rowToSave];
+      return { ...current, [active.key]: nextRows };
+    });
     if (route.selectedId !== rowToSave.id) navigateToSelection(active.key, rowToSave.id, { replace: true });
   }
 
@@ -476,7 +480,7 @@ export function App() {
     await saveEntity('elections', copy);
     const contests = duplicateElectionContests((selected as Election).id, copy.id, db);
     await Promise.all(contests.map((contest) => saveEntity('contests', contest)));
-    setDb({ ...db, elections: [...db.elections, copy], contests: [...db.contests, ...contests] });
+    setDb((current) => current ? { ...current, elections: [...current.elections, copy], contests: [...current.contests, ...contests] } : current);
     navigateToSelection('elections', copy.id);
   }
 
@@ -487,9 +491,13 @@ export function App() {
     if (active.key === 'elections') {
       const contestIds = db.contests.filter((contest) => contest.electionId === id).map((contest) => contest.id);
       await Promise.all(contestIds.map((contestId) => deleteEntity('contests', contestId)));
-      setDb({ ...db, elections: nextRows as Election[], contests: db.contests.filter((contest) => contest.electionId !== id) });
+      setDb((current) => current ? {
+        ...current,
+        elections: current.elections.filter((election) => election.id !== id),
+        contests: current.contests.filter((contest) => contest.electionId !== id)
+      } : current);
     } else {
-      setDb({ ...db, [active.key]: nextRows });
+      setDb((current) => current ? { ...current, [active.key]: current[active.key].filter((row) => row.id !== id) } : current);
     }
     navigateToSelection(active.key, nextRows[0]?.id ?? null, { replace: true });
   }
