@@ -627,6 +627,60 @@ describe('Directus report data operations', () => {
       { contest: data.contests[1], candidates: scoreElection(election, { ...data, contests: [data.contests[1]] }) }
     ]);
   });
+
+  it('computes election candidate metrics and fallback stance labels from election rows', () => {
+    const data = emptyDatabase();
+    data.candidates.push({
+      id: 10,
+      firstName: 'Chase',
+      middleName: 'Russell',
+      lastName: 'Oliver',
+      score: null,
+      confidence: null,
+      stancesCount: null,
+      confidenceScoreProduct: null
+    });
+    data.issues.push(
+      { id: 20, name: 'Ballot access', description: null },
+      { id: 21, name: 'Civil liberties', description: null },
+      { id: 22, name: 'Out of scope', description: null }
+    );
+    data.stances.push(
+      { id: 30, date_created: null, date_updated: null, title: '', candidate: 10, issue: 20, rating: 100, confidence: 80, description: null },
+      { id: 31, date_created: null, date_updated: null, title: null, candidate: 10, issue: 21, rating: 70, confidence: 60, description: null },
+      { id: 32, date_created: null, date_updated: null, title: 'Ignored issue', candidate: 10, issue: 22, rating: 100, confidence: 10, description: null }
+    );
+    const election = {
+      id: 40,
+      name: 'General',
+      date: null,
+      date_updated: null,
+      description: null,
+      issues: [{ issueId: 20, points: 3500 }, { issueId: 21, points: 6000 }]
+    };
+    const contest = { id: 41, electionId: 40, name: 'General contest', candidateIds: [10] };
+    data.contests.push(contest);
+
+    const candidatesDashboard = reportDashboards.find((dashboard) => dashboard.name === 'Candidates')!;
+    expect(getReportPanelData(candidatesDashboard.panels[0], data, election, contest)).toEqual([
+      { id: 10, label: 'Oliver', value: 7700, color: '#E35169' }
+    ]);
+    expect(getReportPanelData(candidatesDashboard.panels[1], data, election, contest)).toEqual([
+      { id: 10, label: 'Oliver', value: 70, color: '#6644FF' }
+    ]);
+    expect(getReportPanelData(candidatesDashboard.panels[2], data, election, contest)).toEqual([
+      { id: 10, label: 'Oliver', value: 2, color: '#2ECDA7' }
+    ]);
+    expect(getReportPanelData(candidatesDashboard.panels[3], data, election, contest)).toEqual([
+      { id: 10, label: 'Oliver', value: 539000, color: '#FFA439' }
+    ]);
+
+    const stancesDashboard = reportDashboards.find((dashboard) => dashboard.name === 'Stances')!;
+    expect(getReportPanelData(stancesDashboard.panels[0], data, election).map((item) => item.label)).toEqual([
+      'Chase Russell Oliver - Ballot access',
+      'Chase Russell Oliver - Civil liberties'
+    ]);
+  });
 });
 
 describe('election UX helpers', () => {

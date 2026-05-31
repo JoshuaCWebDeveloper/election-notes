@@ -39,10 +39,21 @@ export type CandidateContestRow = {
   candidates: Array<{ candidate: Candidate; score: number }>;
 };
 
-type ReportRow = Candidate | IssueReportRow | Stance | ElectionIssueReportRow;
+type ReportRow = Candidate | CandidateReportRow | IssueReportRow | StanceReportRow | ElectionIssueReportRow;
+
+type CandidateReportRow = Candidate & {
+  score: number;
+  confidence: number | null;
+  stancesCount: number;
+  confidenceScoreProduct: number | null;
+};
 
 type IssueReportRow = Issue & {
   stancesCount: number;
+};
+
+type StanceReportRow = Stance & {
+  title: string;
 };
 
 type ElectionIssueReportRow = {
@@ -165,12 +176,16 @@ function getCollectionRows(collection: ReportCollection, db: Database, election?
     if (collection === 'candidate') return db.candidates;
     if (collection === 'electionIssue') return [];
     if (collection === 'issue') return db.issues.map((issue) => withIssueStanceCount(issue, db));
-    return db.stances;
+    return db.stances.map((stance) => withStanceReportLabel(stance, db));
   }
 
   const candidateIds = new Set(contest ? contest.candidateIds : getElectionCandidateIds(db, election.id));
   const issueIds = new Set(election.issues.map((issue) => issue.issueId));
-  if (collection === 'candidate') return db.candidates.filter((candidate) => candidateIds.has(candidate.id));
+  if (collection === 'candidate') {
+    return db.candidates
+      .filter((candidate) => candidateIds.has(candidate.id))
+      .map((candidate) => withCandidateElectionMetrics(candidate, election, db));
+  }
   if (collection === 'electionIssue') {
     return election.issues.flatMap((electionIssue) => {
       const issue = db.issues.find((row) => row.id === electionIssue.issueId);
@@ -188,12 +203,14 @@ function getCollectionRows(collection: ReportCollection, db: Database, election?
       .filter((issue) => issueIds.has(issue.id))
       .map((issue) => withIssueStanceCount(issue, db, { issueIds, candidateIds }));
   }
-  return db.stances.filter((stance) => (
-    stance.candidate !== null &&
-    stance.issue !== null &&
-    candidateIds.has(stance.candidate) &&
-    issueIds.has(stance.issue)
-  ));
+  return db.stances
+    .filter((stance) => (
+      stance.candidate !== null &&
+      stance.issue !== null &&
+      candidateIds.has(stance.candidate) &&
+      issueIds.has(stance.issue)
+    ))
+    .map((stance) => withStanceReportLabel(stance, db));
 }
 
 export function countIssueStances(
@@ -230,6 +247,48 @@ function withIssueStanceCount(
     ...issue,
     stancesCount: countIssueStances(db, issue.id, context)
   };
+}
+
+function withCandidateElectionMetrics(candidate: Candidate, election: Election, db: Database): CandidateReportRow {
+  const electionIssueIds = new Set(election.issues.map((issue) => issue.issueId));
+  const stances = db.stances.filter((stance) => (
+    stance.candidate === candidate.id &&
+    stance.issue !== null &&
+    electionIssueIds.has(stance.issue)
+  ));
+  const scored = scoreCandidate(candidate.id, election, db);
+  const score = scored?.score ?? 0;
+  const confidences = stances
+    .map((stance) => stance.confidence)
+    .filter((confidence): confidence is number => typeof confidence === 'number' && !Number.isNaN(confidence));
+  const confidence = confidences.length === 0
+    ? null
+    : confidences.reduce((total, value) => total + value, 0) / confidences.length;
+
+  return {
+    ...candidate,
+    score,
+    confidence,
+    stancesCount: stances.length,
+    confidenceScoreProduct: confidence === null ? null : score * confidence
+  };
+}
+
+function withStanceReportLabel(stance: Stance, db: Database): StanceReportRow {
+  const title = stance.title?.trim();
+  if (title) return { ...stance, title };
+
+  const candidate = db.candidates.find((row) => row.id === stance.candidate);
+  const issue = db.issues.find((row) => row.id === stance.issue);
+  const candidateLabel = candidate ? candidateName(candidate) : `Candidate #${stance.candidate ?? 'none'}`;
+  const issueLabel = issue?.name?.trim() || `Issue #${stance.issue ?? 'none'}`;
+  return { ...stance, title: `${candidateLabel} - ${issueLabel}` };
+}
+
+function candidateName(candidate: Candidate): string {
+  return [candidate.firstName, candidate.middleName, candidate.lastName]
+    .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+    .join(' ') || `Candidate #${candidate.id}`;
 }
 
 function matchesFilter(row: ReportRow, filter: ReportPanel['filter']): boolean {
