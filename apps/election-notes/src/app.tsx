@@ -906,12 +906,13 @@ function StanceDetailEditor({
 }) {
   const [draft, setDraft] = useState(stance);
   const [addOpen, setAddOpen] = useState(false);
-  const [search, setSearch] = useState('');
+  const [newFactDraft, setNewFactDraft] = useState({ summary: '', description: '' });
   const linkedRows = db.stanceFacts
     .filter((link) => link.stance === stance.id)
     .map((link) => ({ link, fact: db.facts.find((fact) => fact.id === link.fact) ?? null }))
     .filter((item): item is { link: StanceFact; fact: Fact } => item.fact !== null);
-  const newFactSummary = search.trim();
+  const newFactSummary = newFactDraft.summary.trim();
+  const newFactDescription = newFactDraft.description.trim();
 
   useEffect(() => {
     setDraft(stance);
@@ -919,13 +920,13 @@ function StanceDetailEditor({
 
   useDebouncedAutoSave(draft, (nextDraft) => onSaveEntity('stances', { ...nextDraft, date_updated: new Date().toISOString() }, electionId));
 
-  async function createFact(summary: string) {
+  async function createFact(summary: string, description: string) {
     const now = new Date().toISOString();
-    const fact: Fact = { id: nextId(db.facts), date_created: now, date_updated: now, Summary: summary, description: null };
+    const fact: Fact = { id: nextId(db.facts), date_created: now, date_updated: now, Summary: summary, description: description || null };
     const link: StanceFact = { id: nextId(db.stanceFacts), stance: stance.id, fact: fact.id };
     await onSaveEntity('facts', fact, electionId);
     await onSaveEntity('stanceFacts', link, electionId);
-    setSearch('');
+    setNewFactDraft({ summary: '', description: '' });
     setAddOpen(false);
   }
 
@@ -940,25 +941,34 @@ function StanceDetailEditor({
       <section className="stance-facts">
         <div className="stance-facts-heading">
           <h6>Linked facts</h6>
-          <div className="add-popover">
-            <button type="button" className="add-trigger" aria-expanded={addOpen} onClick={() => setAddOpen(!addOpen)}>
-              <Plus size={16} /> Add fact
-            </button>
-            {addOpen && (
-              <div className="add-menu">
-                <input
-                  value={search}
-                  placeholder="Type a fact summary"
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-                <button type="button" className="create-option" disabled={!newFactSummary} onClick={() => createFact(newFactSummary)}>
-                  <Plus size={16} />
-                  <span>{newFactSummary ? `Create fact "${newFactSummary}"` : 'Create fact'}</span>
-                </button>
-              </div>
-            )}
-          </div>
+          <button type="button" className="add-trigger" aria-expanded={addOpen} onClick={() => setAddOpen(!addOpen)}>
+            <Plus size={16} /> Add fact
+          </button>
         </div>
+        {addOpen && (
+          <div className="add-menu stance-fact-add-menu">
+            <label>
+              Fact summary
+              <input
+                value={newFactDraft.summary}
+                placeholder="Type a fact summary"
+                onChange={(event) => setNewFactDraft((current) => ({ ...current, summary: event.target.value }))}
+              />
+            </label>
+            <label>
+              Description
+              <textarea
+                value={newFactDraft.description}
+                placeholder="Add source notes, links, or context"
+                onChange={(event) => setNewFactDraft((current) => ({ ...current, description: event.target.value }))}
+              />
+            </label>
+            <button type="button" className="create-option" disabled={!newFactSummary} onClick={() => createFact(newFactSummary, newFactDescription)}>
+              <Plus size={16} />
+              <span>{newFactSummary ? `Create fact "${newFactSummary}"` : 'Create fact'}</span>
+            </button>
+          </div>
+        )}
         <div className="fact-editor-list">
           {linkedRows.length === 0 && <p>No facts linked.</p>}
           {linkedRows.map(({ link, fact }) => (
