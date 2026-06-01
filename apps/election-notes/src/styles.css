@@ -609,6 +609,20 @@ textarea {
   grid-column: 1 / -1;
 }
 
+.election-editor-columns {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.election-editor-columns > .wide {
+  grid-column: auto;
+}
+
+.election-editor-columns .issue-row {
+  grid-template-columns: minmax(0, 1fr) minmax(6rem, 7rem) auto;
+}
+
 .checklist,
 .included-editor {
   border-top: 1px solid #d8dee6;
@@ -1032,6 +1046,7 @@ textarea {
   main,
   .content,
   .form-grid,
+  .election-editor-columns,
   .bar-row,
   .included-row,
   .issue-row,

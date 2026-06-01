@@ -1013,23 +1013,62 @@ function Editor({
           <ConfirmableDeleteButton className="danger" onConfirm={() => { autoSave.cancel(); onDelete(draft.id); }}>Delete</ConfirmableDeleteButton>
         </div>
       </div>
-      <div className="form-grid">
-        {tab.fields.map((field) => (
-          <FieldInput
-            key={field.key}
-            field={field}
-            value={(draft as Record<string, unknown>)[field.key]}
-            db={db}
-            electionId={tab.key === 'elections' ? draft.id : null}
-            onCreateCandidate={onCreateCandidate}
-            onCreateIssue={onCreateIssue}
-            onCreateContest={onCreateContest}
-            onSaveContest={onSaveContest}
-            onDeleteContest={onDeleteContest}
-            onChange={(value) => update(field.key, value)}
-          />
-        ))}
-      </div>
+      {tab.key === 'elections' ? (
+        <>
+          <div className="form-grid">
+            {tab.fields.filter((field) => field.type !== 'electionContests' && field.type !== 'electionIssues').map((field) => (
+              <FieldInput
+                key={field.key}
+                field={field}
+                value={(draft as Record<string, unknown>)[field.key]}
+                db={db}
+                electionId={draft.id}
+                onCreateCandidate={onCreateCandidate}
+                onCreateIssue={onCreateIssue}
+                onCreateContest={onCreateContest}
+                onSaveContest={onSaveContest}
+                onDeleteContest={onDeleteContest}
+                onChange={(value) => update(field.key, value)}
+              />
+            ))}
+          </div>
+          <div className="election-editor-columns">
+            {tab.fields.filter((field) => field.type === 'electionContests' || field.type === 'electionIssues').map((field) => (
+              <FieldInput
+                key={field.key}
+                field={field}
+                value={(draft as Record<string, unknown>)[field.key]}
+                db={db}
+                electionId={draft.id}
+                onCreateCandidate={onCreateCandidate}
+                onCreateIssue={onCreateIssue}
+                onCreateContest={onCreateContest}
+                onSaveContest={onSaveContest}
+                onDeleteContest={onDeleteContest}
+                onChange={(value) => update(field.key, value)}
+              />
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="form-grid">
+          {tab.fields.map((field) => (
+            <FieldInput
+              key={field.key}
+              field={field}
+              value={(draft as Record<string, unknown>)[field.key]}
+              db={db}
+              electionId={null}
+              onCreateCandidate={onCreateCandidate}
+              onCreateIssue={onCreateIssue}
+              onCreateContest={onCreateContest}
+              onSaveContest={onSaveContest}
+              onDeleteContest={onDeleteContest}
+              onChange={(value) => update(field.key, value)}
+            />
+          ))}
+        </div>
+      )}
       {tab.key === 'elections' && (
         <>
           <section className="scores">
