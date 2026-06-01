@@ -225,6 +225,10 @@ export function countIssueStances(
   )).length;
 }
 
+export function countStanceFacts(db: Database, stanceId: Id): number {
+  return db.stanceFacts.filter((link) => link.stance === stanceId).length;
+}
+
 export function averageIssueConfidence(db: Database, issueId: Id, candidateIds?: Set<Id>): number | null {
   const confidences = db.stances
     .filter((stance) => (

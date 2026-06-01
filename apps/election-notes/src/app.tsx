@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Copy, Download, Menu, Plus, RotateCcw, Trash
 import { useLocation, useNavigate } from 'react-router-dom';
 import { canRestoreSeedData, createBackupJson, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
 import { candidateFromInlineName, contestFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
-import { averageIssueConfidence, countIssueStances, getCandidateContestRows, getElectionCandidateCount, getElectionContestCount, getElectionContests, getReportPanelData, reportDashboards, type ReportDatum, type ReportPanel } from './services/reports';
+import { averageIssueConfidence, countIssueStances, countStanceFacts, getCandidateContestRows, getElectionCandidateCount, getElectionContestCount, getElectionContests, getReportPanelData, reportDashboards, type ReportDatum, type ReportPanel } from './services/reports';
 import type { Candidate, Contest, Database, Election, ElectionIssue, Fact, First, Id, Issue, Stance, StanceFact } from './types';
 
 type Tab = {
@@ -1149,6 +1149,7 @@ function CandidateStanceEditor({
         {electionIssues.length === 0 && <p>No election issues selected. Add an issue to create candidate stances.</p>}
         {electionIssues.map(({ electionIssue, issue, stance }) => {
           const isExpanded = stance !== null && expandedStanceId === stance.id;
+          const factCount = stance ? countStanceFacts(db, stance.id) : 0;
           return (
             <article className="stance-row" key={electionIssue.issueId}>
               <div className="stance-row-summary">
@@ -1159,7 +1160,7 @@ function CandidateStanceEditor({
                   {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   <span>
                     <strong>{issueName(issue)}</strong>
-                    <small>{stance ? `${stanceName(stance)} · rating ${formatScore(stance.rating)} · confidence ${formatScore(stance.confidence)}` : 'No stance yet. Click to create and expand.'}</small>
+                    <small>{stance ? `${stanceName(stance)} · rating ${formatScore(stance.rating)} · confidence ${formatScore(stance.confidence)} · ${formatScore(factCount)} linked facts` : 'No stance yet. Click to create and expand.'}</small>
                   </span>
                 </button>
               </div>
@@ -1394,7 +1395,6 @@ function ElectionContestEditor({
 }) {
   const [addOpen, setAddOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const filteredContests = filterByName(contests, (contest) => contest.name, search);
 
   async function addContest(name: string) {
     await onCreateContest(name, electionId);
@@ -1425,18 +1425,9 @@ function ElectionContestEditor({
         onOpenChange={setAddOpen}
         search={search}
         onSearchChange={setSearch}
-        placeholder="Search or type a contest"
-        results={filteredContests}
-        getResultKey={(contest) => contest.id}
-        renderResult={(contest) => contest.name}
-        renderMeta={(contest) => `${contest.candidateIds.length} candidates`}
-        emptyText="No contests match."
-        onSelect={(contest) => {
-          const name = window.prompt('Rename contest', contest.name);
-          if (name?.trim()) onSaveContest({ ...contest, name: name.trim() });
-          setSearch('');
-          setAddOpen(false);
-        }}
+        placeholder="Type a contest"
+        emptyText=""
+        showResults={false}
         onCreate={addContest}
       />
     </fieldset>
@@ -1613,12 +1604,13 @@ function SearchAddPopover<TItem>({
   search,
   onSearchChange,
   placeholder,
-  results,
+  results = [],
   getResultKey,
   renderResult,
   renderOption,
   renderMeta,
   emptyText,
+  showResults = true,
   onSelect,
   onCreate
 }: {
@@ -1629,13 +1621,14 @@ function SearchAddPopover<TItem>({
   search: string;
   onSearchChange: (value: string) => void;
   placeholder: string;
-  results: TItem[];
-  getResultKey: (item: TItem) => Id;
-  renderResult: (item: TItem) => string;
+  results?: TItem[];
+  getResultKey?: (item: TItem) => Id;
+  renderResult?: (item: TItem) => string;
   renderOption?: (item: TItem) => ReactNode;
   renderMeta?: (item: TItem) => string;
   emptyText: string;
-  onSelect: (item: TItem) => void;
+  showResults?: boolean;
+  onSelect?: (item: TItem) => void;
   onCreate: (name: string) => Promise<void>;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1679,19 +1672,21 @@ function SearchAddPopover<TItem>({
             placeholder={placeholder}
             onChange={(event) => onSearchChange(event.target.value)}
           />
-          <div className="add-options">
-            {results.length === 0 && <p>{emptyText}</p>}
-            {results.map((item) => (
-              <button type="button" key={getResultKey(item)} onClick={() => onSelect(item)}>
-                {renderOption ? renderOption(item) : (
-                  <>
-                    <span>{renderResult(item)}</span>
-                    {renderMeta && <small>{renderMeta(item)}</small>}
-                  </>
-                )}
-              </button>
-            ))}
-          </div>
+          {showResults && (
+            <div className="add-options">
+              {results.length === 0 && <p>{emptyText}</p>}
+              {results.map((item) => (
+                <button type="button" key={getResultKey?.(item)} onClick={() => onSelect?.(item)}>
+                  {renderOption ? renderOption(item) : (
+                    <>
+                      <span>{renderResult?.(item)}</span>
+                      {renderMeta && <small>{renderMeta(item)}</small>}
+                    </>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
           <button type="button" className="create-option" disabled={!createName} onClick={() => onCreate(createName)}>
             <Plus size={16} />
             <span>{createName ? `${createLabel} "${createName}"` : createLabel}</span>

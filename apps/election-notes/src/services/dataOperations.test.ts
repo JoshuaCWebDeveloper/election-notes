@@ -15,7 +15,7 @@ import {
 import { exportBackup } from '../repositories/backup';
 import { canRestoreSeedData, createBackupJson, loadDatabase, resetDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, deleteEntity, validateDatabase } from './database';
 import { candidateFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName } from './elections';
-import { getCandidateContestRows, getReportPanelData, reportDashboards, scoreElection } from './reports';
+import { countStanceFacts, getCandidateContestRows, getReportPanelData, reportDashboards, scoreElection } from './reports';
 
 const databaseName = 'election-notes';
 const legacyStorageKey = 'election-notes-db-v1';
@@ -534,6 +534,20 @@ describe.sequential('database service data operations', () => {
 });
 
 describe('Directus report data operations', () => {
+  it('counts facts linked to a stance', () => {
+    const data = emptyDatabase();
+    data.stanceFacts.push(
+      { id: 1, stance: 10, fact: 20 },
+      { id: 2, stance: 10, fact: 21 },
+      { id: 3, stance: 11, fact: 22 },
+      { id: 4, stance: null, fact: 23 }
+    );
+
+    expect(countStanceFacts(data, 10)).toBe(2);
+    expect(countStanceFacts(data, 11)).toBe(1);
+    expect(countStanceFacts(data, 12)).toBe(0);
+  });
+
   it('maps the db-directus.sql dashboard panels to computed chart rows', () => {
     const data = emptyDatabase();
     data.candidates.push(
