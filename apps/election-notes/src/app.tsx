@@ -910,7 +910,7 @@ function ReportsView({ db, election }: { db: Database; election: Election }) {
 }
 
 function isContestSpecificPanel(panel: ReportPanel) {
-  return panel.type === 'candidate-contest' || panel.collection !== undefined;
+  return panel.type === 'candidate-contest' || panel.collection === 'candidate';
 }
 
 function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; db: Database; election: Election; panel: ReportPanel }) {
@@ -1010,13 +1010,21 @@ function CandidateReportSortControl({
 
   return (
     <div className="report-sort">
-      <button type="button" aria-expanded={isOpen} className="report-sort-trigger" onClick={() => onOpenChange(!isOpen)}>
-        Sort: {activeLabel} <ChevronDown size={14} />
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        aria-label={`Sort report by ${activeLabel}`}
+        className="report-sort-trigger"
+        title={`Sort by ${activeLabel}`}
+        onClick={() => onOpenChange(!isOpen)}
+      >
+        Sort <ChevronDown size={14} />
       </button>
       {isOpen && (
-        <div className="report-sort-menu">
-          <button type="button" className={sort === 'name' ? 'selected' : ''} onClick={() => selectSort('name')}>Name (A-Z)</button>
-          <button type="button" className={sort === 'value' ? 'selected' : ''} onClick={() => selectSort('value')}>{valueLabel}</button>
+        <div className="report-sort-menu" role="menu">
+          <button type="button" className={sort === 'name' ? 'selected' : ''} role="menuitem" onClick={() => selectSort('name')}>Name (A-Z)</button>
+          <button type="button" className={sort === 'value' ? 'selected' : ''} role="menuitem" onClick={() => selectSort('value')}>{valueLabel}</button>
         </div>
       )}
     </div>
