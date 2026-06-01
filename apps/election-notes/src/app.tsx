@@ -1287,6 +1287,11 @@ function StanceDetailEditor({
     setAddOpen(false);
   }
 
+  function updateFactSearch(value: string) {
+    setFactSearch(value);
+    setNewFactDraft((current) => ({ ...current, summary: value }));
+  }
+
   return (
     <div className="stance-detail" ref={detailRef}>
       <div className="stance-form-grid">
@@ -1309,7 +1314,7 @@ function StanceDetailEditor({
               <input
                 value={factSearch}
                 placeholder="Search existing facts"
-                onChange={(event) => setFactSearch(event.target.value)}
+                onChange={(event) => updateFactSearch(event.target.value)}
               />
             </label>
             <div className="add-options">
