@@ -167,6 +167,18 @@ function candidateName(candidate?: Candidate | null) {
   return [candidate.firstName, candidate.middleName, candidate.lastName].filter(Boolean).join(' ') || `Candidate #${candidate.id}`;
 }
 
+function candidateLastWord(candidate: Candidate) {
+  const name = candidateName(candidate).trim();
+  const words = name.split(/\s+/).filter(Boolean);
+  return words.at(-1) ?? name;
+}
+
+function compareCandidatesByLastWord(left: Candidate, right: Candidate) {
+  return candidateLastWord(left).localeCompare(candidateLastWord(right), undefined, { sensitivity: 'base' }) ||
+    candidateName(left).localeCompare(candidateName(right), undefined, { sensitivity: 'base' }) ||
+    left.id - right.id;
+}
+
 function issueName(issue?: Issue | null) {
   return issue?.name || `Issue #${issue?.id ?? 'none'}`;
 }
@@ -1013,7 +1025,10 @@ function Editor({
   onDelete: (id: Id) => void;
 }) {
   const [draft, setDraft] = useState(row);
-  const contestScores = useMemo(() => tab.key === 'elections' ? getCandidateContestRows(db, draft as Election) : [], [db, draft, tab.key]);
+  const contestScores = useMemo(() => tab.key === 'elections' ? getCandidateContestRows(db, draft as Election).map((contestScore) => ({
+    ...contestScore,
+    candidates: [...contestScore.candidates].sort((left, right) => compareCandidatesByLastWord(left.candidate, right.candidate))
+  })) : [], [db, draft, tab.key]);
 
   function update(key: string, value: unknown) {
     setDraft((current) => ({ ...current, [key]: value }) as typeof row);
