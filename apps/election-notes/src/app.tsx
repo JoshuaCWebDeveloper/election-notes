@@ -26,6 +26,8 @@ type ConfirmableDeleteButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>
   onConfirm: () => void | Promise<void>;
 };
 
+type CandidateReportSort = 'name' | 'value';
+
 const autoSaveDelayMs = 700;
 
 function useDebouncedAutoSave<T>(value: T, onSave: (value: T) => void | Promise<void>, delay = autoSaveDelayMs) {
@@ -865,8 +867,7 @@ function ReportsView({ db, election }: { db: Database; election: Election }) {
     <section className="reports" aria-labelledby="reports-title">
       <div className="reports-heading">
         <div>
-          <h2 id="reports-title">Directus Reports</h2>
-          <p>Dashboards and panels recovered from db-directus.sql for {election.name}.</p>
+          <h2 id="reports-title">Reports</h2>
         </div>
       </div>
       <div className="dashboard-grid">
@@ -913,15 +914,36 @@ function isContestSpecificPanel(panel: ReportPanel) {
 }
 
 function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; db: Database; election: Election; panel: ReportPanel }) {
+  const [candidateSort, setCandidateSort] = useState<CandidateReportSort>('value');
+  const [isSortMenuOpen, setSortMenuOpen] = useState(false);
+  const isCandidateReport = panel.type === 'candidate-contest' || panel.collection === 'candidate';
+  const valueSortLabel = candidateReportValueLabel(panel);
+  const sortControl = isCandidateReport ? (
+    <CandidateReportSortControl
+      isOpen={isSortMenuOpen}
+      onOpenChange={setSortMenuOpen}
+      onSortChange={setCandidateSort}
+      sort={candidateSort}
+      valueLabel={valueSortLabel}
+    />
+  ) : null;
+
   if (panel.type === 'candidate-contest') {
     const contestRows = contest
       ? getCandidateContestRows(db, election).filter((contestRow) => contestRow.contest?.id === contest.id)
       : getCandidateContestRows(db, election);
+    const sortedContestRows = contestRows.map((contestRow) => ({
+      ...contestRow,
+      candidates: sortCandidateContestRows(contestRow.candidates, candidateSort)
+    }));
     return (
       <article className="report-panel wide-panel">
-        <h4>{panel.name}</h4>
+        <div className="report-panel-heading">
+          <h4>{panel.name}</h4>
+          {sortControl}
+        </div>
         <div className="contest-grid">
-          {contestRows.map((contestRow) => (
+          {sortedContestRows.map((contestRow) => (
             <div key={contestRow.contest?.id ?? 'legacy'}>
               {!contest && <strong>{contestRow.contest?.name ?? 'Legacy candidate scores'}</strong>}
               <div className="contest-candidate-list">
@@ -940,12 +962,16 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
   }
 
   const data = getReportPanelData(panel, db, election, contest);
+  const sortedData = isCandidateReport ? sortCandidateReportData(data, db, candidateSort) : data;
   if (panel.type === 'list') {
     return (
       <article className="report-panel">
-        <h4>{panel.name}</h4>
+        <div className="report-panel-heading">
+          <h4>{panel.name}</h4>
+          {sortControl}
+        </div>
         <ul className="report-list">
-          {data.map((item) => <li key={item.id}>{item.label}</li>)}
+          {sortedData.map((item) => <li key={item.id}>{item.label}</li>)}
         </ul>
       </article>
     );
@@ -953,10 +979,85 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
 
   return (
     <article className="report-panel">
-      <h4>{panel.name}</h4>
-      <BarChart data={data} horizontal={panel.horizontal === true} />
+      <div className="report-panel-heading">
+        <h4>{panel.name}</h4>
+        {sortControl}
+      </div>
+      <BarChart data={sortedData} horizontal={panel.horizontal === true} />
     </article>
   );
+}
+
+function CandidateReportSortControl({
+  isOpen,
+  onOpenChange,
+  onSortChange,
+  sort,
+  valueLabel
+}: {
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
+  onSortChange: (sort: CandidateReportSort) => void;
+  sort: CandidateReportSort;
+  valueLabel: string;
+}) {
+  const activeLabel = sort === 'name' ? 'Name (A-Z)' : valueLabel;
+
+  function selectSort(nextSort: CandidateReportSort) {
+    onSortChange(nextSort);
+    onOpenChange(false);
+  }
+
+  return (
+    <div className="report-sort">
+      <button type="button" aria-expanded={isOpen} className="report-sort-trigger" onClick={() => onOpenChange(!isOpen)}>
+        Sort: {activeLabel} <ChevronDown size={14} />
+      </button>
+      {isOpen && (
+        <div className="report-sort-menu">
+          <button type="button" className={sort === 'name' ? 'selected' : ''} onClick={() => selectSort('name')}>Name (A-Z)</button>
+          <button type="button" className={sort === 'value' ? 'selected' : ''} onClick={() => selectSort('value')}>{valueLabel}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function sortCandidateReportData(data: ReportDatum[], db: Database, sort: CandidateReportSort) {
+  const candidates = new Map(db.candidates.map((candidate) => [candidate.id, candidate]));
+  return [...data].sort((left, right) => {
+    if (sort === 'value') return compareNullableNumbersDesc(left.value, right.value) || compareReportCandidateNames(left, right, candidates);
+    return compareReportCandidateNames(left, right, candidates);
+  });
+}
+
+function sortCandidateContestRows(rows: Array<{ candidate: Candidate; score: number }>, sort: CandidateReportSort) {
+  return [...rows].sort((left, right) => {
+    if (sort === 'value') return right.score - left.score || compareCandidatesByLastWord(left.candidate, right.candidate);
+    return compareCandidatesByLastWord(left.candidate, right.candidate);
+  });
+}
+
+function compareReportCandidateNames(left: ReportDatum, right: ReportDatum, candidates: Map<Id, Candidate>) {
+  const leftCandidate = candidates.get(left.id);
+  const rightCandidate = candidates.get(right.id);
+  if (leftCandidate && rightCandidate) return compareCandidatesByLastWord(leftCandidate, rightCandidate);
+  return left.label.localeCompare(right.label, undefined, { sensitivity: 'base' }) || left.id - right.id;
+}
+
+function compareNullableNumbersDesc(left: number | null, right: number | null) {
+  const leftValue = left ?? Number.NEGATIVE_INFINITY;
+  const rightValue = right ?? Number.NEGATIVE_INFINITY;
+  return rightValue - leftValue;
+}
+
+function candidateReportValueLabel(panel: ReportPanel) {
+  if (panel.type === 'candidate-contest') return 'Score';
+  if (panel.yAxis === 'score') return 'Score';
+  if (panel.yAxis === 'confidence') return 'Confidence';
+  if (panel.yAxis === 'stancesCount') return 'Stances';
+  if (panel.yAxis === 'confidenceScoreProduct') return 'Confidence Score Product';
+  return panel.name;
 }
 
 function BarChart({ data, horizontal }: { data: ReportDatum[]; horizontal: boolean }) {

@@ -273,6 +273,60 @@ header {
   grid-column: 1 / -1;
 }
 
+.report-panel-heading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.report-panel-heading h4 {
+  min-width: 0;
+}
+
+.report-sort {
+  flex: 0 0 auto;
+  position: relative;
+}
+
+.report-sort-trigger {
+  font-size: 0.82rem;
+  min-height: 2rem;
+  padding: 0.35rem 0.55rem;
+  white-space: normal;
+}
+
+.report-sort-menu {
+  background: #ffffff;
+  border: 1px solid #b9c3cf;
+  border-radius: 8px;
+  box-shadow: 0 0.75rem 1.6rem rgba(29, 36, 48, 0.16);
+  display: grid;
+  gap: 0.2rem;
+  min-width: 11rem;
+  padding: 0.3rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 4;
+}
+
+.report-sort-menu button {
+  border-color: transparent;
+  justify-content: flex-start;
+  min-height: 2rem;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+
+.report-sort-menu button:hover,
+.report-sort-menu button.selected {
+  background: #eef5f8;
+  border-color: #c6d7df;
+}
+
 .report-list {
   display: grid;
   gap: 0.45rem;
