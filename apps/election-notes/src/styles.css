@@ -1052,10 +1052,6 @@ textarea {
   width: 100%;
 }
 
-.stance-fact-add-menu textarea {
-  min-height: 7rem;
-}
-
 .fact-inline-editor {
   background: #f8fafc;
   border: 1px solid #d8dee6;

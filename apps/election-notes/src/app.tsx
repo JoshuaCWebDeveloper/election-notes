@@ -1257,16 +1257,15 @@ function StanceDetailEditor({
   const [draft, setDraft] = useState(stance);
   const [addOpen, setAddOpen] = useState(false);
   const [isCreatingFact, setIsCreatingFact] = useState(false);
+  const [createdFactId, setCreatedFactId] = useState<Id | null>(null);
   const [factSearch, setFactSearch] = useState('');
-  const [newFactDraft, setNewFactDraft] = useState({ summary: '', description: '' });
   const linkedRows = db.stanceFacts
     .filter((link) => link.stance === stance.id)
     .map((link) => ({ link, fact: db.facts.find((fact) => fact.id === link.fact) ?? null }))
     .filter((item): item is { link: StanceFact; fact: Fact } => item.fact !== null);
   const availableFacts = getAvailableFactsForStance(db, stance.id);
   const filteredFacts = filterByName(availableFacts, factName, factSearch);
-  const newFactSummary = newFactDraft.summary.trim();
-  const newFactDescription = newFactDraft.description.trim();
+  const newFactSummary = factSearch.trim();
 
   useEffect(() => {
     setDraft(stance);
@@ -1282,9 +1281,9 @@ function StanceDetailEditor({
     return () => window.cancelAnimationFrame(frame);
   }, [stance.id]);
 
-  async function createFact(summary: string, description: string) {
+  async function createFact(summary: string) {
     const now = new Date().toISOString();
-    const fact: Fact = { id: nextId(db.facts), date_created: now, date_updated: now, Summary: summary, description: description || null };
+    const fact: Fact = { id: nextId(db.facts), date_created: now, date_updated: now, Summary: summary, description: null };
     const link: StanceFact = { id: nextId(db.stanceFacts), stance: stance.id, fact: fact.id };
     setIsCreatingFact(true);
     try {
@@ -1292,8 +1291,8 @@ function StanceDetailEditor({
         onSaveEntity('facts', fact, electionId),
         onSaveEntity('stanceFacts', link, electionId)
       ]);
+      setCreatedFactId(fact.id);
       setFactSearch('');
-      setNewFactDraft({ summary: '', description: '' });
       setAddOpen(false);
     } finally {
       setIsCreatingFact(false);
@@ -1303,14 +1302,9 @@ function StanceDetailEditor({
   async function linkFact(fact: Fact) {
     const link: StanceFact = { id: nextId(db.stanceFacts), stance: stance.id, fact: fact.id };
     await onSaveEntity('stanceFacts', link, electionId);
+    setCreatedFactId(null);
     setFactSearch('');
-    setNewFactDraft({ summary: '', description: '' });
     setAddOpen(false);
-  }
-
-  function updateFactSearch(value: string) {
-    setFactSearch(value);
-    setNewFactDraft((current) => ({ ...current, summary: value }));
   }
 
   return (
@@ -1331,11 +1325,11 @@ function StanceDetailEditor({
         {addOpen && (
           <div className="add-menu stance-fact-add-menu">
             <label>
-              Existing fact
+              Fact
               <input
                 value={factSearch}
-                placeholder="Search existing facts"
-                onChange={(event) => updateFactSearch(event.target.value)}
+                placeholder="Search existing facts or type a new fact"
+                onChange={(event) => setFactSearch(event.target.value)}
               />
             </label>
             <div className="add-options">
@@ -1349,23 +1343,7 @@ function StanceDetailEditor({
                 </button>
               ))}
             </div>
-            <label>
-              Fact summary
-              <input
-                value={newFactDraft.summary}
-                placeholder="Type a fact summary"
-                onChange={(event) => setNewFactDraft((current) => ({ ...current, summary: event.target.value }))}
-              />
-            </label>
-            <label>
-              Description
-              <textarea
-                value={newFactDraft.description}
-                placeholder="Add source notes, links, or context"
-                onChange={(event) => setNewFactDraft((current) => ({ ...current, description: event.target.value }))}
-              />
-            </label>
-            <button type="button" className="create-option" disabled={!newFactSummary || isCreatingFact} onClick={() => createFact(newFactSummary, newFactDescription)}>
+            <button type="button" className="create-option" disabled={!newFactSummary || isCreatingFact} onClick={() => createFact(newFactSummary)}>
               <Plus size={16} />
               <span>{isCreatingFact ? 'Creating fact...' : newFactSummary ? `Create fact "${newFactSummary}"` : 'Create fact'}</span>
             </button>
@@ -1377,6 +1355,8 @@ function StanceDetailEditor({
             <FactInlineEditor
               fact={fact}
               key={link.id}
+              focusDescription={fact.id === createdFactId}
+              onDescriptionFocused={() => setCreatedFactId(null)}
               onSave={(nextFact) => onSaveEntity('facts', nextFact, electionId)}
               onDelete={async () => {
                 await onDeleteEntity('stanceFacts', link.id, electionId);
@@ -1390,7 +1370,21 @@ function StanceDetailEditor({
   );
 }
 
-function FactInlineEditor({ fact, onSave, onDelete }: { fact: Fact; onSave: (fact: Fact) => void | Promise<void>; onDelete: () => void | Promise<void> }) {
+function FactInlineEditor({
+  fact,
+  focusDescription = false,
+  onDescriptionFocused,
+  onSave,
+  onDelete
+}: {
+  fact: Fact;
+  focusDescription?: boolean;
+  onDescriptionFocused?: () => void;
+  onSave: (fact: Fact) => void | Promise<void>;
+  onDelete: () => void | Promise<void>;
+}) {
+  const editorRef = useRef<HTMLElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState(fact);
 
   useEffect(() => {
@@ -1399,10 +1393,20 @@ function FactInlineEditor({ fact, onSave, onDelete }: { fact: Fact; onSave: (fac
 
   const autoSave = useDebouncedAutoSave(draft, (nextDraft) => onSave({ ...nextDraft, date_updated: new Date().toISOString() }));
 
+  useEffect(() => {
+    if (!focusDescription) return;
+    const frame = window.requestAnimationFrame(() => {
+      editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      descriptionRef.current?.focus({ preventScroll: true });
+      onDescriptionFocused?.();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusDescription, onDescriptionFocused]);
+
   return (
-    <section className="fact-inline-editor">
+    <section className="fact-inline-editor" ref={editorRef}>
       <label>Summary<input value={draft.Summary ?? ''} onChange={(event) => setDraft({ ...draft, Summary: event.target.value || null })} /></label>
-      <label>Description<textarea value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value || null })} /></label>
+      <label>Description<textarea ref={descriptionRef} value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value || null })} /></label>
       <div className="fact-actions">
         <ConfirmableDeleteButton className="danger" onConfirm={() => { autoSave.cancel(); return onDelete(); }}>Delete</ConfirmableDeleteButton>
       </div>
