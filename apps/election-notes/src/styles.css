@@ -948,6 +948,7 @@ textarea {
   display: grid;
   gap: 0.7rem;
   padding: 0.75rem;
+  scroll-margin-top: 0.75rem;
 }
 
 .candidate-stance-panel h5,
@@ -978,6 +979,7 @@ textarea {
   display: grid;
   gap: 0.65rem;
   padding: 0.65rem;
+  scroll-margin-top: 0.75rem;
 }
 
 .stance-row-summary {

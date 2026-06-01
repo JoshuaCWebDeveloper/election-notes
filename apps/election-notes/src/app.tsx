@@ -100,6 +100,25 @@ function useDebouncedAutoSave<T>(value: T, onSave: (value: T) => void | Promise<
   };
 }
 
+function getScrollableParent(element: HTMLElement) {
+  let parent = element.parentElement;
+  while (parent) {
+    const style = window.getComputedStyle(parent);
+    if (/(auto|scroll)/.test(style.overflowY) && parent.scrollHeight > parent.clientHeight) {
+      return parent;
+    }
+    parent = parent.parentElement;
+  }
+  return null;
+}
+
+function isElementInScrollView(element: HTMLElement) {
+  const rect = element.getBoundingClientRect();
+  const scrollParent = getScrollableParent(element);
+  const viewport = scrollParent?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight };
+  return rect.bottom > viewport.top && rect.top < viewport.bottom;
+}
+
 function ConfirmableDeleteButton({ children, className, onConfirm, type = 'button', ...props }: ConfirmableDeleteButtonProps) {
   const [armed, setArmed] = useState(false);
   const timerRef = useRef<number | null>(null);
@@ -1176,7 +1195,8 @@ function CandidateStanceEditor({
   useEffect(() => {
     if (expandedStanceId !== null) return;
     const frame = window.requestAnimationFrame(() => {
-      panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (!panelRef.current || isElementInScrollView(panelRef.current)) return;
+      panelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [candidate.id, expandedStanceId]);
@@ -1256,7 +1276,8 @@ function StanceDetailEditor({
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      const stanceRow = detailRef.current?.closest<HTMLElement>('.stance-row') ?? detailRef.current;
+      stanceRow?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [stance.id]);
