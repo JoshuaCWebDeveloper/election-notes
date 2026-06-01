@@ -1318,9 +1318,22 @@ function StanceDetailEditor({
       <section className="stance-facts">
         <div className="stance-facts-heading">
           <h6>Linked facts</h6>
-          <button type="button" className="add-trigger" aria-expanded={addOpen} onClick={() => setAddOpen(!addOpen)}>
-            <Plus size={16} /> Add fact
-          </button>
+        </div>
+        <div className="fact-editor-list">
+          {linkedRows.length === 0 && <p>No facts linked.</p>}
+          {linkedRows.map(({ link, fact }) => (
+            <FactInlineEditor
+              fact={fact}
+              key={link.id}
+              focusDescription={fact.id === createdFactId}
+              onDescriptionFocused={() => setCreatedFactId(null)}
+              onSave={(nextFact) => onSaveEntity('facts', nextFact, electionId)}
+              onDelete={async () => {
+                await onDeleteEntity('stanceFacts', link.id, electionId);
+                await onDeleteEntity('facts', fact.id, electionId);
+              }}
+            />
+          ))}
         </div>
         {addOpen && (
           <div className="add-menu stance-fact-add-menu">
@@ -1349,22 +1362,9 @@ function StanceDetailEditor({
             </button>
           </div>
         )}
-        <div className="fact-editor-list">
-          {linkedRows.length === 0 && <p>No facts linked.</p>}
-          {linkedRows.map(({ link, fact }) => (
-            <FactInlineEditor
-              fact={fact}
-              key={link.id}
-              focusDescription={fact.id === createdFactId}
-              onDescriptionFocused={() => setCreatedFactId(null)}
-              onSave={(nextFact) => onSaveEntity('facts', nextFact, electionId)}
-              onDelete={async () => {
-                await onDeleteEntity('stanceFacts', link.id, electionId);
-                await onDeleteEntity('facts', fact.id, electionId);
-              }}
-            />
-          ))}
-        </div>
+        <button type="button" className="add-trigger stance-fact-add-trigger" aria-expanded={addOpen} onClick={() => setAddOpen(!addOpen)}>
+          <Plus size={16} /> Add fact
+        </button>
       </section>
     </div>
   );

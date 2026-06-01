@@ -1036,13 +1036,10 @@ textarea {
 }
 
 .stance-facts-heading {
-  align-items: center;
-  display: grid;
-  gap: 0.75rem;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: block;
 }
 
-.stance-facts-heading .add-trigger {
+.stance-fact-add-trigger {
   justify-self: end;
 }
 
