@@ -1,4 +1,4 @@
-import type { Candidate, Contest, Database, Election, Id, Issue, Stance } from '../types';
+import type { Candidate, Contest, Database, Election, Fact, Id, Issue, Stance } from '../types';
 
 export type ReportCollection = 'candidate' | 'issue' | 'electionIssue' | 'stance';
 export type ReportPanelType = 'bar-chart' | 'ordered-bar-chart' | 'list' | 'candidate-contest';
@@ -227,6 +227,13 @@ export function countIssueStances(
 
 export function countStanceFacts(db: Database, stanceId: Id): number {
   return db.stanceFacts.filter((link) => link.stance === stanceId).length;
+}
+
+export function getAvailableFactsForStance(db: Database, stanceId: Id): Fact[] {
+  const linkedFactIds = new Set(db.stanceFacts
+    .filter((link) => link.stance === stanceId && link.fact !== null)
+    .map((link) => link.fact as Id));
+  return db.facts.filter((fact) => !linkedFactIds.has(fact.id));
 }
 
 export function averageIssueConfidence(db: Database, issueId: Id, candidateIds?: Set<Id>): number | null {

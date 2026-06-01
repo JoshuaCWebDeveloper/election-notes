@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, Copy, Download, Menu, Plus, RotateCcw, Trash
 import { useLocation, useNavigate } from 'react-router-dom';
 import { canRestoreSeedData, createBackupJson, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
 import { candidateFromInlineName, contestFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
-import { averageIssueConfidence, countIssueStances, countStanceFacts, getCandidateContestRows, getElectionCandidateCount, getElectionContestCount, getElectionContests, getReportPanelData, reportDashboards, type ReportDatum, type ReportPanel } from './services/reports';
+import { averageIssueConfidence, countIssueStances, countStanceFacts, getAvailableFactsForStance, getCandidateContestRows, getElectionCandidateCount, getElectionContestCount, getElectionContests, getReportPanelData, reportDashboards, type ReportDatum, type ReportPanel } from './services/reports';
 import type { Candidate, Contest, Database, Election, ElectionIssue, Fact, First, Id, Issue, Stance, StanceFact } from './types';
 
 type Tab = {
@@ -1237,11 +1237,14 @@ function StanceDetailEditor({
   const [draft, setDraft] = useState(stance);
   const [addOpen, setAddOpen] = useState(false);
   const [isCreatingFact, setIsCreatingFact] = useState(false);
+  const [factSearch, setFactSearch] = useState('');
   const [newFactDraft, setNewFactDraft] = useState({ summary: '', description: '' });
   const linkedRows = db.stanceFacts
     .filter((link) => link.stance === stance.id)
     .map((link) => ({ link, fact: db.facts.find((fact) => fact.id === link.fact) ?? null }))
     .filter((item): item is { link: StanceFact; fact: Fact } => item.fact !== null);
+  const availableFacts = getAvailableFactsForStance(db, stance.id);
+  const filteredFacts = filterByName(availableFacts, factName, factSearch);
   const newFactSummary = newFactDraft.summary.trim();
   const newFactDescription = newFactDraft.description.trim();
 
@@ -1268,11 +1271,20 @@ function StanceDetailEditor({
         onSaveEntity('facts', fact, electionId),
         onSaveEntity('stanceFacts', link, electionId)
       ]);
+      setFactSearch('');
       setNewFactDraft({ summary: '', description: '' });
       setAddOpen(false);
     } finally {
       setIsCreatingFact(false);
     }
+  }
+
+  async function linkFact(fact: Fact) {
+    const link: StanceFact = { id: nextId(db.stanceFacts), stance: stance.id, fact: fact.id };
+    await onSaveEntity('stanceFacts', link, electionId);
+    setFactSearch('');
+    setNewFactDraft({ summary: '', description: '' });
+    setAddOpen(false);
   }
 
   return (
@@ -1292,6 +1304,25 @@ function StanceDetailEditor({
         </div>
         {addOpen && (
           <div className="add-menu stance-fact-add-menu">
+            <label>
+              Existing fact
+              <input
+                value={factSearch}
+                placeholder="Search existing facts"
+                onChange={(event) => setFactSearch(event.target.value)}
+              />
+            </label>
+            <div className="add-options">
+              {filteredFacts.length === 0 && <p>No available facts match.</p>}
+              {filteredFacts.map((fact) => (
+                <button type="button" key={fact.id} onClick={() => { void linkFact(fact); }}>
+                  <div className="fact-option-copy">
+                    <strong>{factName(fact)}</strong>
+                    <span>{fact.description || 'No description.'}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
             <label>
               Fact summary
               <input

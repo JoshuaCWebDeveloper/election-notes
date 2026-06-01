@@ -15,7 +15,7 @@ import {
 import { exportBackup } from '../repositories/backup';
 import { canRestoreSeedData, createBackupJson, loadDatabase, resetDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, deleteEntity, validateDatabase } from './database';
 import { candidateFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName } from './elections';
-import { countStanceFacts, getCandidateContestRows, getReportPanelData, reportDashboards, scoreElection } from './reports';
+import { countStanceFacts, getAvailableFactsForStance, getCandidateContestRows, getReportPanelData, reportDashboards, scoreElection } from './reports';
 
 const databaseName = 'election-notes';
 const legacyStorageKey = 'election-notes-db-v1';
@@ -546,6 +546,22 @@ describe('Directus report data operations', () => {
     expect(countStanceFacts(data, 10)).toBe(2);
     expect(countStanceFacts(data, 11)).toBe(1);
     expect(countStanceFacts(data, 12)).toBe(0);
+  });
+
+  it('returns only facts not already linked to a stance', () => {
+    const data = emptyDatabase();
+    data.facts.push(
+      { id: 20, date_created: null, date_updated: null, Summary: 'Linked', description: null },
+      { id: 21, date_created: null, date_updated: null, Summary: 'Available', description: null },
+      { id: 22, date_created: null, date_updated: null, Summary: 'Other stance', description: null }
+    );
+    data.stanceFacts.push(
+      { id: 1, stance: 10, fact: 20 },
+      { id: 2, stance: 10, fact: null },
+      { id: 3, stance: 11, fact: 22 }
+    );
+
+    expect(getAvailableFactsForStance(data, 10).map((fact) => fact.id)).toEqual([21, 22]);
   });
 
   it('maps the db-directus.sql dashboard panels to computed chart rows', () => {

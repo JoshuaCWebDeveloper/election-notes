@@ -848,6 +848,25 @@ textarea {
   font-size: 0.78rem;
 }
 
+.fact-option-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.fact-option-copy strong,
+.fact-option-copy span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fact-option-copy span {
+  color: #667487;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
 .create-option {
   border-top: 1px solid #d8dee6;
   color: #176b87;
