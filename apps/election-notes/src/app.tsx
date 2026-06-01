@@ -1281,7 +1281,8 @@ function StanceDetailEditor({
     .map((link) => ({ link, fact: db.facts.find((fact) => fact.id === link.fact) ?? null }))
     .filter((item): item is { link: StanceFact; fact: Fact } => item.fact !== null);
   const availableFacts = getAvailableFactsForStance(db, stance.id);
-  const filteredFacts = filterByName(availableFacts, factName, factSearch);
+  const filteredFacts = filterByName(availableFacts, factName, factSearch)
+    .sort((left, right) => factName(left).localeCompare(factName(right), undefined, { sensitivity: 'base' }) || left.id - right.id);
   const newFactSummary = factSearch.trim();
 
   useEffect(() => {
