@@ -1597,8 +1597,8 @@ function ElectionIssueEditor({
               <span>{item.issue?.description || 'No description.'}</span>
               <span>Confidence: {formatScore(averageIssueConfidence(db, item.issueId, candidateIds))}</span>
             </div>
-            <label>
-              Points
+            <label className="points-input">
+              <span>Points</span>
               <input aria-label={`${issueName(item.issue)} points`} type="number" step="any" value={item.points} onFocus={(event) => event.target.select()} onChange={(event) => onChange(value.map((row) => row.issueId === item.issueId ? { ...row, points: Number(event.target.value) } : row))} />
             </label>
             <button type="button" aria-label={`Remove ${issueName(item.issue)}`} onClick={() => onChange(value.filter((row) => row.issueId !== item.issueId))}><X size={16} /></button>

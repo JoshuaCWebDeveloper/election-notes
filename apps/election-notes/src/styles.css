@@ -610,6 +610,7 @@ textarea {
 }
 
 .election-editor-columns {
+  align-items: start;
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -620,7 +621,18 @@ textarea {
 }
 
 .election-editor-columns .issue-row {
+  align-items: center;
   grid-template-columns: minmax(0, 1fr) minmax(6rem, 7rem) auto;
+}
+
+.election-editor-columns .points-input span {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }
 
 .checklist,
