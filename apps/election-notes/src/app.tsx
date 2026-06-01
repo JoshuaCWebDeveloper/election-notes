@@ -853,6 +853,14 @@ function ElectionCardList({
 }
 
 function ReportsView({ db, election }: { db: Database; election: Election }) {
+  const contests = getElectionContests(db, election.id);
+  const contestDashboards = reportDashboards
+    .map((dashboard) => ({ ...dashboard, panels: dashboard.panels.filter(isContestSpecificPanel) }))
+    .filter((dashboard) => dashboard.panels.length > 0);
+  const generalDashboards = reportDashboards
+    .map((dashboard) => ({ ...dashboard, panels: dashboard.panels.filter((panel) => !isContestSpecificPanel(panel)) }))
+    .filter((dashboard) => dashboard.panels.length > 0);
+
   return (
     <section className="reports" aria-labelledby="reports-title">
       <div className="reports-heading">
@@ -862,7 +870,30 @@ function ReportsView({ db, election }: { db: Database; election: Election }) {
         </div>
       </div>
       <div className="dashboard-grid">
-        {reportDashboards.map((dashboard) => (
+        {contests.length === 0 && contestDashboards.length > 0 && (
+          <article className="report-panel wide-panel">
+            <h3>Contest Reports</h3>
+            <p className="empty-report">No contests created.</p>
+          </article>
+        )}
+        {contests.map((contest) => (
+          <section className="contest-report-group" key={contest.id}>
+            <h3>{contest.name}</h3>
+            <div className="dashboard-grid">
+              {contestDashboards.map((dashboard) => (
+                <section className="dashboard" key={dashboard.id}>
+                  <h4 className="dashboard-title">{dashboard.name}</h4>
+                  <div className="panel-grid">
+                    {dashboard.panels.map((panel) => (
+                      <ReportPanelView contest={contest} db={db} election={election} key={panel.id} panel={panel} />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </section>
+        ))}
+        {generalDashboards.map((dashboard) => (
           <section className="dashboard" key={dashboard.id}>
             <h3>{dashboard.name}</h3>
             <div className="panel-grid">
@@ -877,15 +908,22 @@ function ReportsView({ db, election }: { db: Database; election: Election }) {
   );
 }
 
-function ReportPanelView({ db, election, panel }: { db: Database; election: Election; panel: ReportPanel }) {
+function isContestSpecificPanel(panel: ReportPanel) {
+  return panel.type === 'candidate-contest' || panel.collection !== undefined;
+}
+
+function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; db: Database; election: Election; panel: ReportPanel }) {
   if (panel.type === 'candidate-contest') {
+    const contestRows = contest
+      ? getCandidateContestRows(db, election).filter((contestRow) => contestRow.contest?.id === contest.id)
+      : getCandidateContestRows(db, election);
     return (
       <article className="report-panel wide-panel">
         <h4>{panel.name}</h4>
         <div className="contest-grid">
-          {getCandidateContestRows(db, election).map((contestRow) => (
+          {contestRows.map((contestRow) => (
             <div key={contestRow.contest?.id ?? 'legacy'}>
-              <strong>{contestRow.contest?.name ?? 'Legacy candidate scores'}</strong>
+              {!contest && <strong>{contestRow.contest?.name ?? 'Legacy candidate scores'}</strong>}
               <div className="contest-candidate-list">
                 {contestRow.candidates.map((row, index) => (
                   <div className="contest-row" key={row.candidate.id}>
@@ -901,27 +939,7 @@ function ReportPanelView({ db, election, panel }: { db: Database; election: Elec
     );
   }
 
-  if (panel.collection === 'candidate') {
-    const contests = getElectionContests(db, election.id);
-    return (
-      <>
-        {contests.length === 0 && (
-          <article className="report-panel">
-            <h4>{panel.name}</h4>
-            <p className="empty-report">No contests created.</p>
-          </article>
-        )}
-        {contests.map((contest) => (
-          <article className="report-panel" key={contest.id}>
-            <h4>{panel.name}: {contest.name}</h4>
-            <BarChart data={getReportPanelData(panel, db, election, contest)} horizontal={panel.horizontal === true} />
-          </article>
-        ))}
-      </>
-    );
-  }
-
-  const data = getReportPanelData(panel, db, election);
+  const data = getReportPanelData(panel, db, election, contest);
   if (panel.type === 'list') {
     return (
       <article className="report-panel">

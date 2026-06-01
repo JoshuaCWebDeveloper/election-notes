@@ -234,9 +234,25 @@ header {
   gap: 0.65rem;
 }
 
-.dashboard h3 {
+.dashboard h3,
+.dashboard-title {
   color: #384456;
   font-size: 1rem;
+  margin: 0;
+}
+
+.contest-report-group {
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+}
+
+.contest-report-group > h3 {
+  color: #1d2430;
+  font-size: 1.05rem;
+  margin: 0;
 }
 
 .panel-grid {
