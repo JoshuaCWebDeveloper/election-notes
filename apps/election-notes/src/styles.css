@@ -386,6 +386,16 @@ header {
 .contest-grid > div {
   display: grid;
   gap: 0.4rem;
+  min-height: 0;
+}
+
+.contest-candidate-list {
+  display: grid;
+  gap: 0.4rem;
+  max-height: 16rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.25rem;
 }
 
 .contest-row {

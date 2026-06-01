@@ -886,12 +886,14 @@ function ReportPanelView({ db, election, panel }: { db: Database; election: Elec
           {getCandidateContestRows(db, election).map((contestRow) => (
             <div key={contestRow.contest?.id ?? 'legacy'}>
               <strong>{contestRow.contest?.name ?? 'Legacy candidate scores'}</strong>
-              {contestRow.candidates.slice(0, 6).map((row, index) => (
-                <div className="contest-row" key={row.candidate.id}>
-                  <span>{index + 1}. {candidateName(row.candidate)}</span>
-                  <b>{formatScore(row.score)}</b>
-                </div>
-              ))}
+              <div className="contest-candidate-list">
+                {contestRow.candidates.map((row, index) => (
+                  <div className="contest-row" key={row.candidate.id}>
+                    <span>{index + 1}. {candidateName(row.candidate)}</span>
+                    <b>{formatScore(row.score)}</b>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
