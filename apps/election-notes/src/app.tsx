@@ -1587,7 +1587,7 @@ function ElectionIssueEditor({
 
   return (
     <fieldset className="wide included-editor">
-      <legend>Election-specific issue points</legend>
+      <legend>Issues in this election</legend>
       <div className="included-list">
         {included.length === 0 && <p>No issues selected.</p>}
         {included.map((item) => (
