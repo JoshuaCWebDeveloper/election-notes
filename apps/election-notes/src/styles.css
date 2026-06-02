@@ -463,6 +463,7 @@ header {
 .chart--vertical {
   border-bottom: 1px solid #9aa8b8;
   border-left: 1px solid #9aa8b8;
+  max-width: 100%;
   min-width: 0;
   overflow-x: hidden;
   overflow-y: visible;
@@ -475,9 +476,10 @@ header {
   background-image: linear-gradient(to top, transparent 0, transparent 24%, #edf1f6 24.4%, transparent 24.8%, transparent 49%, #edf1f6 49.4%, transparent 49.8%, transparent 74%, #edf1f6 74.4%, transparent 74.8%);
   display: grid;
   gap: 0.55rem;
-  grid-auto-columns: minmax(0, 1fr);
-  grid-auto-flow: column;
-  min-height: 12rem;
+  grid-auto-rows: 12rem;
+  grid-template-columns: repeat(auto-fit, minmax(3.5rem, 1fr));
+  min-width: 0;
+  width: 100%;
 }
 
 .chart-column {
@@ -486,6 +488,7 @@ header {
   gap: 0.35rem;
   grid-template-rows: auto minmax(8rem, 1fr) auto;
   height: 100%;
+  min-height: 12rem;
   min-width: 0;
 }
 
