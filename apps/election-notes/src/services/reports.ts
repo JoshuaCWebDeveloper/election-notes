@@ -1,6 +1,6 @@
 import type { Candidate, Contest, Database, Election, Fact, Id, Issue, Stance } from '../types';
 
-export type ReportCollection = 'candidate' | 'issue' | 'electionIssue' | 'stance';
+export type ReportCollection = 'candidate' | 'issue' | 'electionIssue' | 'stance' | 'incompleteStance';
 export type ReportPanelType = 'bar-chart' | 'ordered-bar-chart' | 'list' | 'candidate-contest';
 export type ReportPlacement = 'contest' | 'election';
 
@@ -25,7 +25,7 @@ export type ReportPanel = {
   horizontal?: boolean;
   sortField?: string;
   sortOrder?: '-' | 'desc' | 'asc';
-  filter?: 'confidence-null' | 'confidence-not-null';
+  filter?: 'confidence-not-null';
   decimals?: number;
 };
 
@@ -41,7 +41,7 @@ export type CandidateContestRow = {
   candidates: Array<{ candidate: Candidate; score: number }>;
 };
 
-type ReportRow = Candidate | CandidateReportRow | IssueReportRow | StanceReportRow | ElectionIssueReportRow;
+type ReportRow = Candidate | CandidateReportRow | IssueReportRow | StanceReportRow | IncompleteStanceReportRow | ElectionIssueReportRow;
 
 type CandidateReportRow = Candidate & {
   score: number;
@@ -56,6 +56,12 @@ type IssueReportRow = Issue & {
 
 type StanceReportRow = Stance & {
   title: string;
+};
+
+type IncompleteStanceReportRow = {
+  id: Id;
+  title: string;
+  value: null;
 };
 
 type ElectionIssueReportRow = {
@@ -95,7 +101,7 @@ export const reportDashboards: ReportDashboard[] = [
     color: '#3399FF',
     panels: [
       { id: 'f3229cd6-5b4c-4635-ab65-a0e203dd066d', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Confidences', type: 'ordered-bar-chart', placement: 'contest', color: '#3399FF', collection: 'stance', xAxis: 'title', yAxis: 'confidence', horizontal: true, filter: 'confidence-not-null', decimals: 1, sortField: 'confidence', sortOrder: '-' },
-      { id: '43becb8c-d286-4d2c-ab6e-eac98de8b9c1', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Missing Confidence', type: 'list', placement: 'contest', color: null, collection: 'stance', xAxis: 'title', yAxis: 'confidence', filter: 'confidence-null', sortField: 'title', sortOrder: 'asc' },
+      { id: '43becb8c-d286-4d2c-ab6e-eac98de8b9c1', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Incomplete Stance', type: 'list', placement: 'contest', color: null, collection: 'incompleteStance', xAxis: 'title', yAxis: 'value', sortField: 'title', sortOrder: 'asc' },
       { id: '2ed2444f-ca71-4b2f-86f0-5639437661c6', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Election Issue Confidences', type: 'ordered-bar-chart', placement: 'election', color: '#6644FF', collection: 'electionIssue', xAxis: 'name', yAxis: 'confidence', horizontal: true, sortField: 'confidence', sortOrder: '-' },
       { id: '836c9762-3d1d-4733-bb08-f5b0557c47fe', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Issue Stances', type: 'ordered-bar-chart', placement: 'contest', color: '#2ECDA7', collection: 'issue', xAxis: 'name', yAxis: 'stancesCount', horizontal: true, sortField: 'stancesCount', sortOrder: '-' }
     ]
@@ -178,6 +184,7 @@ function getCollectionRows(collection: ReportCollection, db: Database, election?
     if (collection === 'candidate') return db.candidates;
     if (collection === 'electionIssue') return [];
     if (collection === 'issue') return db.issues.map((issue) => withIssueStanceCount(issue, db));
+    if (collection === 'incompleteStance') return db.stances.filter(isIncompleteStance).map((stance) => withIncompleteStanceReportLabel(stance, db));
     return db.stances.map((stance) => withStanceReportLabel(stance, db));
   }
 
@@ -205,6 +212,9 @@ function getCollectionRows(collection: ReportCollection, db: Database, election?
       .filter((issue) => issueIds.has(issue.id))
       .map((issue) => withIssueStanceCount(issue, db, { issueIds, candidateIds }));
   }
+  if (collection === 'incompleteStance') {
+    return getIncompleteStanceRows(db, candidateIds, issueIds);
+  }
   return db.stances
     .filter((stance) => (
       stance.candidate !== null &&
@@ -213,6 +223,54 @@ function getCollectionRows(collection: ReportCollection, db: Database, election?
       issueIds.has(stance.issue)
     ))
     .map((stance) => withStanceReportLabel(stance, db));
+}
+
+function getIncompleteStanceRows(db: Database, candidateIds: Set<Id>, issueIds: Set<Id>): IncompleteStanceReportRow[] {
+  let syntheticId = -1;
+  const rows: IncompleteStanceReportRow[] = [];
+
+  for (const candidateId of candidateIds) {
+    for (const issueId of issueIds) {
+      const stance = db.stances.find((row) => row.candidate === candidateId && row.issue === issueId) ?? null;
+      if (stance === null) {
+        rows.push({
+          id: syntheticId--,
+          title: `${candidateIssueLabel(db, candidateId, issueId)} (missing stance)`,
+          value: null
+        });
+        continue;
+      }
+      if (isIncompleteStance(stance)) {
+        rows.push(withIncompleteStanceReportLabel(stance, db));
+      }
+    }
+  }
+
+  return rows;
+}
+
+function isIncompleteStance(stance: Stance): boolean {
+  return !isNumber(stance.rating) || !isNumber(stance.confidence);
+}
+
+function withIncompleteStanceReportLabel(stance: Stance, db: Database): IncompleteStanceReportRow {
+  const missing = [
+    !isNumber(stance.rating) ? 'rating' : null,
+    !isNumber(stance.confidence) ? 'confidence' : null
+  ].filter((part): part is string => part !== null);
+  return {
+    id: stance.id,
+    title: `${candidateIssueLabel(db, stance.candidate, stance.issue)} (missing ${missing.join(', ')})`,
+    value: null
+  };
+}
+
+function candidateIssueLabel(db: Database, candidateId: Id | null, issueId: Id | null): string {
+  const candidate = db.candidates.find((row) => row.id === candidateId);
+  const issue = db.issues.find((row) => row.id === issueId);
+  const candidateLabel = candidate ? candidateName(candidate) : `Candidate #${candidateId ?? 'none'}`;
+  const issueLabel = issue?.name?.trim() || `Issue #${issueId ?? 'none'}`;
+  return `${candidateLabel} - ${issueLabel}`;
 }
 
 export function countIssueStances(
@@ -242,8 +300,7 @@ export function averageIssueConfidence(db: Database, issueId: Id, candidateIds?:
   const confidences = db.stances
     .filter((stance) => (
       stance.issue === issueId &&
-      typeof stance.confidence === 'number' &&
-      !Number.isNaN(stance.confidence) &&
+      isNumber(stance.confidence) &&
       (!candidateIds || (stance.candidate !== null && candidateIds.has(stance.candidate)))
     ))
     .map((stance) => stance.confidence as number);
@@ -273,7 +330,7 @@ function withCandidateElectionMetrics(candidate: Candidate, election: Election, 
   const score = scored?.score ?? 0;
   const confidences = stances
     .map((stance) => stance.confidence)
-    .filter((confidence): confidence is number => typeof confidence === 'number' && !Number.isNaN(confidence));
+    .filter(isNumber);
   const confidence = confidences.length === 0
     ? null
     : confidences.reduce((total, value) => total + value, 0) / confidences.length;
@@ -298,6 +355,10 @@ function withStanceReportLabel(stance: Stance, db: Database): StanceReportRow {
   return { ...stance, title: `${candidateLabel} - ${issueLabel}` };
 }
 
+function isNumber(value: unknown): value is number {
+  return typeof value === 'number' && !Number.isNaN(value);
+}
+
 function candidateName(candidate: Candidate): string {
   return [candidate.firstName, candidate.middleName, candidate.lastName]
     .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
@@ -306,7 +367,6 @@ function candidateName(candidate: Candidate): string {
 
 function matchesFilter(row: ReportRow, filter: ReportPanel['filter']): boolean {
   const confidence = readField(row, 'confidence');
-  if (filter === 'confidence-null') return confidence === null;
   if (filter === 'confidence-not-null') return confidence !== null;
   return true;
 }

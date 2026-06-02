@@ -629,19 +629,19 @@ describe('Directus report data operations', () => {
 
     const stancesDashboard = reportDashboards.find((dashboard) => dashboard.name === 'Stances')!;
     const stanceConfidencesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Confidences')!;
-    const missingConfidencePanel = stancesDashboard.panels.find((panel) => panel.name === 'Missing Confidence')!;
+    const incompleteStancesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Incomplete Stance')!;
     const electionIssueConfidencesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Election Issue Confidences')!;
     const issueStancesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Issue Stances')!;
 
     expect(stanceConfidencesPanel.placement).toBe('contest');
-    expect(missingConfidencePanel.placement).toBe('contest');
+    expect(incompleteStancesPanel.placement).toBe('contest');
     expect(electionIssueConfidencesPanel.placement).toBe('election');
     expect(issueStancesPanel.placement).toBe('contest');
     expect(getReportPanelData(stanceConfidencesPanel, data)).toEqual([
       { id: 5, label: 'Known confidence', value: 88.8, color: '#3399FF' }
     ]);
-    expect(getReportPanelData(missingConfidencePanel, data)).toEqual([
-      { id: 6, label: 'Missing confidence', value: null, color: null }
+    expect(getReportPanelData(incompleteStancesPanel, data)).toEqual([
+      { id: 6, label: 'Ben Beta - Low confidence (missing rating, confidence)', value: null, color: null }
     ]);
     expect(getReportPanelData(electionIssueConfidencesPanel, data)).toEqual([]);
     expect(getReportPanelData(issueStancesPanel, data)).toEqual([
@@ -698,13 +698,15 @@ describe('Directus report data operations', () => {
 
     const stancesDashboard = reportDashboards.find((dashboard) => dashboard.name === 'Stances')!;
     const stanceConfidencesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Confidences')!;
-    const missingConfidencePanel = stancesDashboard.panels.find((panel) => panel.name === 'Missing Confidence')!;
+    const incompleteStancesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Incomplete Stance')!;
     const electionIssueConfidencesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Election Issue Confidences')!;
     const issueStancesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Issue Stances')!;
     expect(getReportPanelData(stanceConfidencesPanel, data, election).map((item) => item.label)).toEqual(['Included', 'Runoff']);
     expect(getReportPanelData(stanceConfidencesPanel, data, election, data.contests[0]).map((item) => item.label)).toEqual(['Included']);
-    expect(getReportPanelData(missingConfidencePanel, data, election, data.contests[0]).map((item) => item.label)).toEqual(['Ignored null']);
-    expect(getReportPanelData(missingConfidencePanel, data, election, data.contests[1])).toEqual([]);
+    expect(getReportPanelData(incompleteStancesPanel, data, election, data.contests[0]).map((item) => item.label)).toEqual([
+      'Ben Beta - Privacy (missing confidence)'
+    ]);
+    expect(getReportPanelData(incompleteStancesPanel, data, election, data.contests[1])).toEqual([]);
     expect(getReportPanelData(electionIssueConfidencesPanel, data, election)).toEqual([{ id: 10, label: 'Privacy', value: 50, color: '#6644FF' }]);
     expect(getReportPanelData(electionIssueConfidencesPanel, data, election, data.contests[0])).toEqual([{ id: 10, label: 'Privacy', value: 80, color: '#6644FF' }]);
     expect(getReportPanelData(electionIssueConfidencesPanel, data, election, data.contests[1])).toEqual([{ id: 10, label: 'Privacy', value: 20, color: '#6644FF' }]);
@@ -713,6 +715,37 @@ describe('Directus report data operations', () => {
     expect(getCandidateContestRows(data, election)).toEqual([
       { contest: data.contests[0], candidates: scoreElection(election, { ...data, contests: [data.contests[0]] }) },
       { contest: data.contests[1], candidates: scoreElection(election, { ...data, contests: [data.contests[1]] }) }
+    ]);
+  });
+
+  it('lists incomplete stance entries for the selected contest issue set', () => {
+    const data = emptyDatabase();
+    data.candidates.push(
+      { id: 1, firstName: 'Ada', middleName: null, lastName: 'Alpha', score: null, confidence: null, stancesCount: null, confidenceScoreProduct: null },
+      { id: 2, firstName: 'Ben', middleName: null, lastName: 'Beta', score: null, confidence: null, stancesCount: null, confidenceScoreProduct: null },
+      { id: 3, firstName: 'Cid', middleName: null, lastName: 'Gamma', score: null, confidence: null, stancesCount: null, confidenceScoreProduct: null }
+    );
+    data.issues.push(
+      { id: 10, name: 'Privacy', description: null },
+      { id: 11, name: 'Transit', description: null }
+    );
+    data.stances.push(
+      { id: 20, date_created: null, date_updated: null, title: 'Complete', candidate: 1, issue: 10, rating: 100, confidence: 80, description: null },
+      { id: 21, date_created: null, date_updated: null, title: 'Missing rating', candidate: 1, issue: 11, rating: null, confidence: 80, description: null },
+      { id: 22, date_created: null, date_updated: null, title: 'Missing confidence', candidate: 2, issue: 10, rating: 60, confidence: null, description: null },
+      { id: 23, date_created: null, date_updated: null, title: 'Other contest', candidate: 3, issue: 10, rating: null, confidence: null, description: null }
+    );
+    const election = { id: 30, name: 'General', date: null, date_updated: null, description: null, issues: [{ issueId: 10, points: 80 }, { issueId: 11, points: 20 }] };
+    const contest = { id: 31, electionId: 30, name: 'General contest', notes: null, candidateIds: [1, 2] };
+    data.contests.push(contest);
+
+    const stancesDashboard = reportDashboards.find((dashboard) => dashboard.name === 'Stances')!;
+    const incompleteStancesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Incomplete Stance')!;
+
+    expect(getReportPanelData(incompleteStancesPanel, data, election, contest).map((item) => item.label)).toEqual([
+      'Ada Alpha - Transit (missing rating)',
+      'Ben Beta - Privacy (missing confidence)',
+      'Ben Beta - Transit (missing stance)'
     ]);
   });
 
