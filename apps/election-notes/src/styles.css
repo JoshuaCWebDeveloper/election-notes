@@ -348,6 +348,8 @@ header {
 .report-list {
   color: #384456;
   list-style: none;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .bar-chart {
@@ -356,6 +358,7 @@ header {
   border-left: 1px solid #9aa8b8;
   display: grid;
   gap: 0.5rem;
+  min-width: 0;
   padding: 0.35rem 0 0.55rem;
 }
 
@@ -368,7 +371,7 @@ header {
 }
 
 .bar-chart .bar-row {
-  grid-template-columns: minmax(8rem, 1.6fr) minmax(5rem, 2fr) 4.5rem;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 2fr) minmax(3.5rem, auto);
 }
 
 .bar-row span,
