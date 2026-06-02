@@ -278,12 +278,11 @@ header {
 }
 
 .report-panel {
-  grid-template-rows: auto minmax(0, 1fr);
-  height: min(32rem, 72vh);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .report-panel-body {
+  max-height: min(22rem, 58vh);
   min-height: 0;
   min-width: 0;
   overflow: auto;
