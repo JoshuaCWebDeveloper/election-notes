@@ -287,11 +287,21 @@ header {
   overflow: visible;
 }
 
-.fixed-report-body,
-.candidate-chart-height-report-body {
-  height: 12.5rem;
+.scrollable-report-body {
+  height: min(19.0625rem, 58vh);
   overflow: auto;
   padding-right: 0.25rem;
+}
+
+.candidate-chart-height-report-body,
+.horizontal-chart-report-body,
+.vertical-chart-report-body {
+  min-height: 12.5rem;
+  overflow: visible;
+}
+
+.candidate-chart-height-report-body {
+  min-height: min(19.0625rem, 58vh);
 }
 
 .data-entry-panel {
@@ -390,6 +400,7 @@ header {
   gap: 0.5rem;
   min-width: 0;
   padding: 0.35rem 0 0.55rem;
+  width: 100%;
 }
 
 .bar-row,
@@ -401,7 +412,7 @@ header {
 }
 
 .bar-chart .bar-row {
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 2fr) minmax(3.5rem, auto);
+  grid-template-columns: minmax(5.5rem, 11rem) minmax(4.5rem, 1fr) minmax(3.7rem, auto);
 }
 
 .bar-row span,
@@ -437,9 +448,10 @@ header {
 .column-chart {
   border-bottom: 1px solid #9aa8b8;
   border-left: 1px solid #9aa8b8;
-  min-width: max(100%, var(--chart-min-width, 5rem));
-  overflow: visible;
+  min-width: 0;
+  overflow: hidden;
   padding: 0.45rem 0.35rem 0;
+  width: 100%;
 }
 
 .chart-plot {
@@ -447,7 +459,7 @@ header {
   background-image: linear-gradient(to top, transparent 0, transparent 24%, #edf1f6 24.4%, transparent 24.8%, transparent 49%, #edf1f6 49.4%, transparent 49.8%, transparent 74%, #edf1f6 74.4%, transparent 74.8%);
   display: grid;
   gap: 0.55rem;
-  grid-auto-columns: minmax(4.45rem, 1fr);
+  grid-auto-columns: minmax(0, 1fr);
   grid-auto-flow: column;
   min-height: 12rem;
 }

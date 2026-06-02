@@ -1115,7 +1115,7 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
           <h4>{panel.name}</h4>
           {sortControl}
         </div>
-        <div className="report-panel-body fixed-report-body">
+        <div className="report-panel-body scrollable-report-body">
           {sortedData.length === 0 ? (
             <p className="empty-report">No report data.</p>
           ) : (
@@ -1134,7 +1134,7 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
         <h4>{panel.name}</h4>
         {sortControl}
       </div>
-      <div className="report-panel-body fixed-report-body">
+      <div className={panel.horizontal === true ? 'report-panel-body horizontal-chart-report-body' : 'report-panel-body vertical-chart-report-body'}>
         <BarChart data={sortedData} horizontal={panel.horizontal === true} />
       </div>
     </article>
@@ -1226,7 +1226,7 @@ function BarChart({ data, horizontal }: { data: ReportDatum[]; horizontal: boole
   if (data.length === 0) return <p className="empty-report">No report data.</p>;
   if (!horizontal) {
     return (
-      <div className="column-chart" style={{ '--chart-min-width': `${data.length * 5}rem` } as CSSProperties}>
+      <div className="column-chart">
         <div className="chart-plot">
           {data.map((item) => {
             const percent = Math.max(1, Math.abs(item.value ?? 0) / max * 100);
