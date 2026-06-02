@@ -1134,7 +1134,7 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
         <h4>{panel.name}</h4>
         {sortControl}
       </div>
-      <div className={panel.horizontal === true ? 'report-panel-body horizontal-chart-report-body' : 'report-panel-body vertical-chart-report-body'}>
+      <div className={panel.horizontal === true ? 'report-panel-body chart-report-body horizontal-chart-report-body' : 'report-panel-body chart-report-body vertical-chart-report-body'}>
         <BarChart data={sortedData} horizontal={panel.horizontal === true} />
       </div>
     </article>
