@@ -287,32 +287,21 @@ header {
   overflow: visible;
 }
 
-.report-body--list {
+.scrollable-report-body {
   height: min(19.0625rem, 58vh);
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding-right: 0.35rem;
+  overflow: auto;
+  padding-right: 0.25rem;
 }
 
-.report-body--candidate-contest {
-  height: min(19.0625rem, 58vh);
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding-right: 0.35rem;
-}
-
-.report-body--horizontal-chart {
+.candidate-chart-height-report-body,
+.horizontal-chart-report-body,
+.vertical-chart-report-body {
   min-height: 12.5rem;
-  overflow-x: auto;
-  overflow-y: visible;
-  padding-bottom: 0.35rem;
+  overflow: visible;
 }
 
-.report-body--vertical-chart {
-  height: min(19.0625rem, 58vh);
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding-right: 0.35rem;
+.candidate-chart-height-report-body {
+  min-height: min(19.0625rem, 58vh);
 }
 
 .data-entry-panel {
@@ -402,20 +391,16 @@ header {
   overflow-wrap: anywhere;
 }
 
-.chart {
-  min-width: 0;
-}
-
-.chart--horizontal {
+.bar-chart {
   align-content: start;
   background-image: linear-gradient(to right, transparent 0, transparent 24%, #edf1f6 24.4%, transparent 24.8%, transparent 49%, #edf1f6 49.4%, transparent 49.8%, transparent 74%, #edf1f6 74.4%, transparent 74.8%);
   border-bottom: 1px solid #9aa8b8;
   border-left: 1px solid #9aa8b8;
   display: grid;
   gap: 0.5rem;
-  min-width: max(100%, 42rem);
+  min-width: 0;
   padding: 0.35rem 0 0.55rem;
-  width: max-content;
+  width: 100%;
 }
 
 .bar-row,
@@ -426,8 +411,8 @@ header {
   grid-template-columns: minmax(5rem, 1fr) minmax(5rem, 2fr) 4.5rem;
 }
 
-.chart--horizontal .bar-row {
-  grid-template-columns: minmax(12rem, 16rem) minmax(18rem, 1fr) minmax(4rem, auto);
+.bar-chart .bar-row {
+  grid-template-columns: minmax(5.5rem, 11rem) minmax(4.5rem, 1fr) minmax(3.7rem, auto);
 }
 
 .bar-row span,
@@ -460,12 +445,11 @@ header {
   width: var(--bar-percent);
 }
 
-.chart--vertical {
+.column-chart {
   border-bottom: 1px solid #9aa8b8;
   border-left: 1px solid #9aa8b8;
   min-width: 0;
-  overflow-x: hidden;
-  overflow-y: visible;
+  overflow: hidden;
   padding: 0.45rem 0.35rem 0;
   width: 100%;
 }
@@ -1279,6 +1263,7 @@ textarea {
   .content,
   .form-grid,
   .election-editor-columns,
+  .bar-row,
   .included-row,
   .issue-row,
   .stance-card-shell,

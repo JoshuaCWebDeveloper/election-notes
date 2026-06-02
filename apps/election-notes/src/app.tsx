@@ -1085,7 +1085,7 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
           <h4>{panel.name}</h4>
           {sortControl}
         </div>
-        <div className="report-panel-body report-body--candidate-contest">
+        <div className="report-panel-body candidate-chart-height-report-body">
           <div className="contest-grid">
             {sortedContestRows.map((contestRow) => (
               <div key={contestRow.contest?.id ?? 'legacy'}>
@@ -1115,7 +1115,7 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
           <h4>{panel.name}</h4>
           {sortControl}
         </div>
-        <div className="report-panel-body report-body--list">
+        <div className="report-panel-body scrollable-report-body">
           {sortedData.length === 0 ? (
             <p className="empty-report">No report data.</p>
           ) : (
@@ -1134,7 +1134,7 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
         <h4>{panel.name}</h4>
         {sortControl}
       </div>
-      <div className={panel.horizontal === true ? 'report-panel-body report-body--horizontal-chart' : 'report-panel-body report-body--vertical-chart'}>
+      <div className={panel.horizontal === true ? 'report-panel-body horizontal-chart-report-body' : 'report-panel-body vertical-chart-report-body'}>
         <BarChart data={sortedData} horizontal={panel.horizontal === true} />
       </div>
     </article>
@@ -1226,7 +1226,7 @@ function BarChart({ data, horizontal }: { data: ReportDatum[]; horizontal: boole
   if (data.length === 0) return <p className="empty-report">No report data.</p>;
   if (!horizontal) {
     return (
-      <div className="chart chart--vertical">
+      <div className="column-chart">
         <div className="chart-plot">
           {data.map((item) => {
             const percent = Math.max(1, Math.abs(item.value ?? 0) / max * 100);
@@ -1250,7 +1250,7 @@ function BarChart({ data, horizontal }: { data: ReportDatum[]; horizontal: boole
   }
 
   return (
-    <div className="chart chart--horizontal">
+    <div className="bar-chart">
       {data.map((item) => {
         const percent = Math.max(1, Math.abs(item.value ?? 0) / max * 100);
         return (
