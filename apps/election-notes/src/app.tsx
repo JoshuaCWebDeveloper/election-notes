@@ -30,7 +30,7 @@ type CandidateReportSort = 'name' | 'value';
 
 const autoSaveDelayMs = 700;
 
-function useDebouncedAutoSave<T>(value: T, onSave: (value: T) => void | Promise<void>, delay = autoSaveDelayMs) {
+function useDebouncedAutoSave<T>(value: T, onSave: (value: T) => void | Promise<void>, delay = autoSaveDelayMs, revision?: number) {
   const isInitialValue = useRef(true);
   const latestSave = useRef(onSave);
   const latestValue = useRef(value);
@@ -67,8 +67,11 @@ function useDebouncedAutoSave<T>(value: T, onSave: (value: T) => void | Promise<
     latestValue.current = value;
   }, [value]);
 
+  const saveKey = revision ?? value;
+
   useEffect(() => {
-    if (isInitialValue.current) {
+    if (revision !== undefined && revision === 0) return;
+    if (revision === undefined && isInitialValue.current) {
       isInitialValue.current = false;
       return;
     }
@@ -86,7 +89,7 @@ function useDebouncedAutoSave<T>(value: T, onSave: (value: T) => void | Promise<
         timerRef.current = null;
       }
     };
-  }, [delay, value]);
+  }, [delay, revision, saveKey]);
 
   useEffect(() => {
     function flushWhenHidden() {
@@ -1112,7 +1115,7 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
           <h4>{panel.name}</h4>
           {sortControl}
         </div>
-        <div className="report-panel-body scrollable-report-body">
+        <div className="report-panel-body fixed-report-body">
           {sortedData.length === 0 ? (
             <p className="empty-report">No report data.</p>
           ) : (
@@ -1131,7 +1134,7 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
         <h4>{panel.name}</h4>
         {sortControl}
       </div>
-      <div className="report-panel-body">
+      <div className="report-panel-body fixed-report-body">
         <BarChart data={sortedData} horizontal={panel.horizontal === true} />
       </div>
     </article>
@@ -1223,7 +1226,7 @@ function BarChart({ data, horizontal }: { data: ReportDatum[]; horizontal: boole
   if (data.length === 0) return <p className="empty-report">No report data.</p>;
   if (!horizontal) {
     return (
-      <div className="column-chart">
+      <div className="column-chart" style={{ '--chart-min-width': `${data.length * 5}rem` } as CSSProperties}>
         <div className="chart-plot">
           {data.map((item) => {
             const percent = Math.max(1, Math.abs(item.value ?? 0) / max * 100);
@@ -1306,12 +1309,14 @@ function Editor({
   onDelete: (id: Id) => void;
 }) {
   const [draft, setDraft] = useState(row);
+  const [draftRevision, setDraftRevision] = useState(0);
 
   function update(key: string, value: unknown) {
     setDraft((current) => ({ ...current, [key]: value }) as typeof row);
+    setDraftRevision((current) => current + 1);
   }
 
-  const autoSave = useDebouncedAutoSave(draft, onSave);
+  const autoSave = useDebouncedAutoSave(draft, onSave, autoSaveDelayMs, draftRevision);
 
   return (
     <form className="editor" onSubmit={(event) => event.preventDefault()}>
@@ -1538,6 +1543,7 @@ function StanceDetailEditor({
 }) {
   const detailRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState(stance);
+  const [draftRevision, setDraftRevision] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
   const [isCreatingFact, setIsCreatingFact] = useState(false);
   const [createdFactId, setCreatedFactId] = useState<Id | null>(null);
@@ -1556,7 +1562,17 @@ function StanceDetailEditor({
     setDraft(stance);
   }, [stance.id]);
 
-  const autoSave = useDebouncedAutoSave(draft, (nextDraft) => onSaveEntity('stances', { ...nextDraft, date_updated: new Date().toISOString() }, electionId));
+  const autoSave = useDebouncedAutoSave(
+    draft,
+    (nextDraft) => onSaveEntity('stances', { ...nextDraft, date_updated: new Date().toISOString() }, electionId),
+    autoSaveDelayMs,
+    draftRevision
+  );
+
+  function updateDraft(nextDraft: Stance) {
+    setDraft(nextDraft);
+    setDraftRevision((current) => current + 1);
+  }
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -1604,10 +1620,10 @@ function StanceDetailEditor({
         <span>{issue?.description || 'No description.'}</span>
       </section>
       <div className="stance-form-grid">
-        <label>Title<input value={draft.title ?? ''} onChange={(event) => setDraft({ ...draft, title: event.target.value || null })} /></label>
-        <label>Rating<input type="number" step="any" value={draft.rating ?? ''} onChange={(event) => setDraft({ ...draft, rating: event.target.value === '' ? null : Number(event.target.value) })} /></label>
-        <label>Confidence<input type="number" step="any" value={draft.confidence ?? ''} onChange={(event) => setDraft({ ...draft, confidence: event.target.value === '' ? null : Number(event.target.value) })} /></label>
-        <label className="wide">Description<textarea value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value || null })} /></label>
+        <label>Title<input value={draft.title ?? ''} onChange={(event) => updateDraft({ ...draft, title: event.target.value || null })} /></label>
+        <label>Rating<input type="number" step="any" value={draft.rating ?? ''} onChange={(event) => updateDraft({ ...draft, rating: event.target.value === '' ? null : Number(event.target.value) })} /></label>
+        <label>Confidence<input type="number" step="any" value={draft.confidence ?? ''} onChange={(event) => updateDraft({ ...draft, confidence: event.target.value === '' ? null : Number(event.target.value) })} /></label>
+        <label className="wide">Description<textarea value={draft.description ?? ''} onChange={(event) => updateDraft({ ...draft, description: event.target.value || null })} /></label>
       </div>
       <div className="stance-detail-actions">
         <ConfirmableDeleteButton className="danger" onConfirm={removeFromCandidate}>Remove from candidate</ConfirmableDeleteButton>
@@ -1688,12 +1704,23 @@ function FactInlineEditor({
   const editorRef = useRef<HTMLElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [draft, setDraft] = useState(fact);
+  const [draftRevision, setDraftRevision] = useState(0);
 
   useEffect(() => {
     setDraft(fact);
   }, [fact.id]);
 
-  const autoSave = useDebouncedAutoSave(draft, (nextDraft) => onSave({ ...nextDraft, date_updated: new Date().toISOString() }));
+  const autoSave = useDebouncedAutoSave(
+    draft,
+    (nextDraft) => onSave({ ...nextDraft, date_updated: new Date().toISOString() }),
+    autoSaveDelayMs,
+    draftRevision
+  );
+
+  function updateDraft(nextDraft: Fact) {
+    setDraft(nextDraft);
+    setDraftRevision((current) => current + 1);
+  }
 
   useEffect(() => {
     if (!focusDescription) return;
@@ -1707,8 +1734,8 @@ function FactInlineEditor({
 
   return (
     <section className="fact-inline-editor" ref={editorRef}>
-      <label>Summary<input value={draft.Summary ?? ''} onChange={(event) => setDraft({ ...draft, Summary: event.target.value || null })} /></label>
-      <label>Description<textarea ref={descriptionRef} value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value || null })} /></label>
+      <label>Summary<input value={draft.Summary ?? ''} onChange={(event) => updateDraft({ ...draft, Summary: event.target.value || null })} /></label>
+      <label>Description<textarea ref={descriptionRef} value={draft.description ?? ''} onChange={(event) => updateDraft({ ...draft, description: event.target.value || null })} /></label>
       <div className="fact-actions">
         <button type="button" onClick={() => { autoSave.flush(); return onRemove(); }}>Remove</button>
         <ConfirmableDeleteButton className="danger" onConfirm={() => { autoSave.cancel(); return onDelete(); }}>Delete</ConfirmableDeleteButton>
@@ -1851,6 +1878,7 @@ function ContestEditor({
   onDeleteContest: (id: Id) => void;
 }) {
   const [draft, setDraft] = useState(contest);
+  const [draftRevision, setDraftRevision] = useState(0);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -1864,10 +1892,11 @@ function ContestEditor({
     setIsEditingNotes(false);
   }, [contest.id]);
 
-  const autoSave = useDebouncedAutoSave(draft, onSaveContest);
+  const autoSave = useDebouncedAutoSave(draft, onSaveContest, autoSaveDelayMs, draftRevision);
 
   function updateContest(nextContest: Contest) {
     setDraft(nextContest);
+    setDraftRevision((current) => current + 1);
   }
 
   async function addCandidate(name: string) {
