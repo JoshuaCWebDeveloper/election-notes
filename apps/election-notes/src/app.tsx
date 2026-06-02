@@ -1610,7 +1610,7 @@ function StanceDetailEditor({
         <label className="wide">Description<textarea value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value || null })} /></label>
       </div>
       <div className="stance-detail-actions">
-        <button type="button" className="danger" onClick={() => { void removeFromCandidate(); }}>Remove from candidate</button>
+        <ConfirmableDeleteButton className="danger" onConfirm={removeFromCandidate}>Remove from candidate</ConfirmableDeleteButton>
       </div>
       <section className="stance-facts">
         <div className="stance-facts-heading">
