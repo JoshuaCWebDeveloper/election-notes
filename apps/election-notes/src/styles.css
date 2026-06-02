@@ -288,7 +288,13 @@ header {
 }
 
 .scrollable-report-body {
-  max-height: min(19rem, 58vh);
+  height: min(19.0625rem, 58vh);
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.candidate-chart-height-report-body {
+  height: 12.5rem;
   overflow: auto;
   padding-right: 0.25rem;
 }
