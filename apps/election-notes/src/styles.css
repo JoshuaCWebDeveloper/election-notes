@@ -264,7 +264,8 @@ header {
   grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
 }
 
-.report-panel {
+.report-panel,
+.data-entry-panel {
   align-content: start;
   align-self: start;
   background: #ffffff;
@@ -272,10 +273,25 @@ header {
   border-radius: 8px;
   display: grid;
   gap: 0.6rem;
-  max-height: min(32rem, 72vh);
+  min-width: 0;
+  padding: 0.8rem;
+}
+
+.report-panel {
+  grid-template-rows: auto minmax(0, 1fr);
+  height: min(32rem, 72vh);
+  overflow: hidden;
+}
+
+.report-panel-body {
+  min-height: 0;
   min-width: 0;
   overflow: auto;
-  padding: 0.8rem;
+  padding-right: 0.25rem;
+}
+
+.data-entry-panel {
+  overflow: visible;
 }
 
 .wide-panel {
@@ -483,10 +499,7 @@ header {
 .contest-candidate-list {
   display: grid;
   gap: 0.4rem;
-  max-height: 16rem;
   min-height: 0;
-  overflow-y: auto;
-  padding-right: 0.25rem;
 }
 
 .contest-row {

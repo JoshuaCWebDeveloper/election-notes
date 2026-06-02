@@ -928,7 +928,9 @@ function ReportsView({
         {contests.length === 0 && contestDashboards.length > 0 && (
           <article className="report-panel wide-panel">
             <h3>Contest Reports</h3>
-            <p className="empty-report">No contests created.</p>
+            <div className="report-panel-body">
+              <p className="empty-report">No contests created.</p>
+            </div>
           </article>
         )}
         {contests.map((contest) => (
@@ -999,7 +1001,7 @@ function ElectionScoringReport({
   return (
     <section className="dashboard">
       <h4 className="dashboard-title">Candidate Data Entry</h4>
-      <article className="report-panel wide-panel">
+      <article className="data-entry-panel wide-panel">
         <div className="score-contest">
           {contestScore.candidates.length === 0 && <p>No candidates selected.</p>}
           <div className="score-grid">
@@ -1068,20 +1070,22 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
           <h4>{panel.name}</h4>
           {sortControl}
         </div>
-        <div className="contest-grid">
-          {sortedContestRows.map((contestRow) => (
-            <div key={contestRow.contest?.id ?? 'legacy'}>
-              {!contest && <strong>{contestRow.contest?.name ?? 'Legacy candidate scores'}</strong>}
-              <div className="contest-candidate-list">
-                {contestRow.candidates.map((row, index) => (
-                  <div className="contest-row" key={row.candidate.id}>
-                    <span>{index + 1}. {candidateName(row.candidate)}</span>
-                    <b>{formatScore(row.score)}</b>
-                  </div>
-                ))}
+        <div className="report-panel-body">
+          <div className="contest-grid">
+            {sortedContestRows.map((contestRow) => (
+              <div key={contestRow.contest?.id ?? 'legacy'}>
+                {!contest && <strong>{contestRow.contest?.name ?? 'Legacy candidate scores'}</strong>}
+                <div className="contest-candidate-list">
+                  {contestRow.candidates.map((row, index) => (
+                    <div className="contest-row" key={row.candidate.id}>
+                      <span>{index + 1}. {candidateName(row.candidate)}</span>
+                      <b>{formatScore(row.score)}</b>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </article>
     );
@@ -1096,13 +1100,15 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
           <h4>{panel.name}</h4>
           {sortControl}
         </div>
-        {sortedData.length === 0 ? (
-          <p className="empty-report">No report data.</p>
-        ) : (
-          <ul className="report-list">
-            {sortedData.map((item) => <li key={item.id}>{item.label}</li>)}
-          </ul>
-        )}
+        <div className="report-panel-body">
+          {sortedData.length === 0 ? (
+            <p className="empty-report">No report data.</p>
+          ) : (
+            <ul className="report-list">
+              {sortedData.map((item) => <li key={item.id}>{item.label}</li>)}
+            </ul>
+          )}
+        </div>
       </article>
     );
   }
@@ -1113,7 +1119,9 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
         <h4>{panel.name}</h4>
         {sortControl}
       </div>
-      <BarChart data={sortedData} horizontal={panel.horizontal === true} />
+      <div className="report-panel-body">
+        <BarChart data={sortedData} horizontal={panel.horizontal === true} />
+      </div>
     </article>
   );
 }
