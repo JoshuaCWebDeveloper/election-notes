@@ -1100,7 +1100,7 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
           <h4>{panel.name}</h4>
           {sortControl}
         </div>
-        <div className="report-panel-body">
+        <div className="report-panel-body scrollable-report-body">
           {sortedData.length === 0 ? (
             <p className="empty-report">No report data.</p>
           ) : (
