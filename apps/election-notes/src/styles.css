@@ -1208,6 +1208,11 @@ textarea {
   min-height: 6rem;
 }
 
+.stance-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .stance-facts {
   border-top: 1px solid #d8dee6;
   padding-top: 0.65rem;

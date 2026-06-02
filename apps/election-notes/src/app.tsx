@@ -34,17 +34,29 @@ function useDebouncedAutoSave<T>(value: T, onSave: (value: T) => void | Promise<
   const isInitialValue = useRef(true);
   const latestSave = useRef(onSave);
   const latestValue = useRef(value);
+  const inFlight = useRef<Promise<void> | null>(null);
   const pending = useRef(false);
   const timerRef = useRef<number | null>(null);
 
+  function saveNow(nextValue: T) {
+    const previousSave = inFlight.current ?? Promise.resolve();
+    const savePromise = previousSave.catch(() => undefined).then(() => latestSave.current(nextValue)).finally(() => {
+      if (inFlight.current === savePromise) {
+        inFlight.current = null;
+      }
+    });
+    inFlight.current = savePromise;
+    return savePromise;
+  }
+
   function flush() {
-    if (!pending.current) return;
+    if (!pending.current) return inFlight.current ?? Promise.resolve();
     pending.current = false;
     if (timerRef.current !== null) {
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    void latestSave.current(latestValue.current);
+    return saveNow(latestValue.current);
   }
 
   useEffect(() => {
@@ -65,7 +77,7 @@ function useDebouncedAutoSave<T>(value: T, onSave: (value: T) => void | Promise<
     timerRef.current = window.setTimeout(() => {
       pending.current = false;
       timerRef.current = null;
-      void latestSave.current(value);
+      void saveNow(value);
     }, delay);
 
     return () => {
@@ -1442,6 +1454,11 @@ function CandidateStanceEditor({
     await createStance(issueId);
   }
 
+  async function removeStanceFromCandidate(stance: Stance) {
+    await onSaveEntity('stances', { ...stance, candidate: null, date_updated: new Date().toISOString() }, election.id);
+    onExpandedStanceChange(null);
+  }
+
   useEffect(() => {
     if (expandedStanceId !== null) return;
     const frame = window.requestAnimationFrame(() => {
@@ -1491,6 +1508,7 @@ function CandidateStanceEditor({
                   db={db}
                   electionId={election.id}
                   onDeleteEntity={onDeleteEntity}
+                  onRemoveFromCandidate={removeStanceFromCandidate}
                   onSaveEntity={onSaveEntity}
                   stance={stance}
                 />
@@ -1508,13 +1526,15 @@ function StanceDetailEditor({
   electionId,
   stance,
   onSaveEntity,
-  onDeleteEntity
+  onDeleteEntity,
+  onRemoveFromCandidate
 }: {
   db: Database;
   electionId: Id;
   stance: Stance;
   onSaveEntity: <TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number], electionId: Id) => Promise<void>;
   onDeleteEntity: <TStore extends EntityKey>(storeName: TStore, id: Id, electionId: Id) => Promise<void>;
+  onRemoveFromCandidate: (stance: Stance) => void | Promise<void>;
 }) {
   const detailRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState(stance);
@@ -1536,7 +1556,7 @@ function StanceDetailEditor({
     setDraft(stance);
   }, [stance.id]);
 
-  useDebouncedAutoSave(draft, (nextDraft) => onSaveEntity('stances', { ...nextDraft, date_updated: new Date().toISOString() }, electionId));
+  const autoSave = useDebouncedAutoSave(draft, (nextDraft) => onSaveEntity('stances', { ...nextDraft, date_updated: new Date().toISOString() }, electionId));
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -1572,6 +1592,12 @@ function StanceDetailEditor({
     setAddOpen(false);
   }
 
+  async function removeFromCandidate() {
+    await autoSave.flush();
+    autoSave.cancel();
+    await onRemoveFromCandidate(draft);
+  }
+
   return (
     <div className="stance-detail" ref={detailRef}>
       <section className="stance-issue-detail issue-card-copy" aria-label="Related issue details">
@@ -1582,6 +1608,9 @@ function StanceDetailEditor({
         <label>Rating<input type="number" step="any" value={draft.rating ?? ''} onChange={(event) => setDraft({ ...draft, rating: event.target.value === '' ? null : Number(event.target.value) })} /></label>
         <label>Confidence<input type="number" step="any" value={draft.confidence ?? ''} onChange={(event) => setDraft({ ...draft, confidence: event.target.value === '' ? null : Number(event.target.value) })} /></label>
         <label className="wide">Description<textarea value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value || null })} /></label>
+      </div>
+      <div className="stance-detail-actions">
+        <button type="button" className="danger" onClick={() => { void removeFromCandidate(); }}>Remove from candidate</button>
       </div>
       <section className="stance-facts">
         <div className="stance-facts-heading">
