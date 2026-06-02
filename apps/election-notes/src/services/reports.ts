@@ -2,6 +2,7 @@ import type { Candidate, Contest, Database, Election, Fact, Id, Issue, Stance } 
 
 export type ReportCollection = 'candidate' | 'issue' | 'electionIssue' | 'stance';
 export type ReportPanelType = 'bar-chart' | 'ordered-bar-chart' | 'list' | 'candidate-contest';
+export type ReportPlacement = 'contest' | 'election';
 
 export type ReportDashboard = {
   id: string;
@@ -16,6 +17,7 @@ export type ReportPanel = {
   dashboardId: string;
   name: string;
   type: ReportPanelType;
+  placement: ReportPlacement;
   color: string | null;
   collection?: ReportCollection;
   xAxis?: string;
@@ -66,24 +68,24 @@ type ElectionIssueReportRow = {
 
 export const reportDashboards: ReportDashboard[] = [
   {
+    id: '9ccac6c8-bb2a-477c-a2b9-233ecb9f0925',
+    name: 'Contest Results',
+    icon: 'space_dashboard',
+    color: null,
+    panels: [
+      { id: 'e96f2fca-24bb-49c5-91d0-8a94336e6d1e', dashboardId: '9ccac6c8-bb2a-477c-a2b9-233ecb9f0925', name: 'Candidate Contest', type: 'candidate-contest', placement: 'contest', color: null }
+    ]
+  },
+  {
     id: 'e7fc9a1f-0c5c-40cb-8a0d-7ab9e55faa9d',
     name: 'Candidates',
     icon: 'bar_chart_4_bars',
     color: '#E35169',
     panels: [
-      { id: '06d2d47d-906f-4a50-8234-2afcc58078d6', dashboardId: 'e7fc9a1f-0c5c-40cb-8a0d-7ab9e55faa9d', name: 'Scores', type: 'bar-chart', color: '#E35169', collection: 'candidate', xAxis: 'lastName', yAxis: 'score' },
-      { id: '54e8ff09-1798-4dcc-b210-03ee703cef87', dashboardId: 'e7fc9a1f-0c5c-40cb-8a0d-7ab9e55faa9d', name: 'Confidences', type: 'bar-chart', color: '#6644FF', collection: 'candidate', xAxis: 'lastName', yAxis: 'confidence' },
-      { id: '192a9a66-bb15-4b5a-91bc-e2efb8d48146', dashboardId: 'e7fc9a1f-0c5c-40cb-8a0d-7ab9e55faa9d', name: 'Stances', type: 'bar-chart', color: '#2ECDA7', collection: 'candidate', xAxis: 'lastName', yAxis: 'stancesCount' },
-      { id: 'bd97bf14-f86a-4058-b7bf-5e4a8bd62986', dashboardId: 'e7fc9a1f-0c5c-40cb-8a0d-7ab9e55faa9d', name: 'Confidence Score Product', type: 'bar-chart', color: '#FFA439', collection: 'candidate', xAxis: 'lastName', yAxis: 'confidenceScoreProduct' }
-    ]
-  },
-  {
-    id: '9ccac6c8-bb2a-477c-a2b9-233ecb9f0925',
-    name: 'Candidate Contest',
-    icon: 'space_dashboard',
-    color: null,
-    panels: [
-      { id: 'e96f2fca-24bb-49c5-91d0-8a94336e6d1e', dashboardId: '9ccac6c8-bb2a-477c-a2b9-233ecb9f0925', name: 'Candidate Contest', type: 'candidate-contest', color: null }
+      { id: '06d2d47d-906f-4a50-8234-2afcc58078d6', dashboardId: 'e7fc9a1f-0c5c-40cb-8a0d-7ab9e55faa9d', name: 'Scores', type: 'bar-chart', placement: 'contest', color: '#E35169', collection: 'candidate', xAxis: 'lastName', yAxis: 'score' },
+      { id: '54e8ff09-1798-4dcc-b210-03ee703cef87', dashboardId: 'e7fc9a1f-0c5c-40cb-8a0d-7ab9e55faa9d', name: 'Confidences', type: 'bar-chart', placement: 'contest', color: '#6644FF', collection: 'candidate', xAxis: 'lastName', yAxis: 'confidence' },
+      { id: '192a9a66-bb15-4b5a-91bc-e2efb8d48146', dashboardId: 'e7fc9a1f-0c5c-40cb-8a0d-7ab9e55faa9d', name: 'Stances', type: 'bar-chart', placement: 'contest', color: '#2ECDA7', collection: 'candidate', xAxis: 'lastName', yAxis: 'stancesCount' },
+      { id: 'bd97bf14-f86a-4058-b7bf-5e4a8bd62986', dashboardId: 'e7fc9a1f-0c5c-40cb-8a0d-7ab9e55faa9d', name: 'Confidence Score Product', type: 'bar-chart', placement: 'contest', color: '#FFA439', collection: 'candidate', xAxis: 'lastName', yAxis: 'confidenceScoreProduct' }
     ]
   },
   {
@@ -92,10 +94,10 @@ export const reportDashboards: ReportDashboard[] = [
     icon: 'full_stacked_bar_chart',
     color: '#3399FF',
     panels: [
-      { id: 'f3229cd6-5b4c-4635-ab65-a0e203dd066d', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Confidences', type: 'ordered-bar-chart', color: '#3399FF', collection: 'stance', xAxis: 'title', yAxis: 'confidence', horizontal: true, filter: 'confidence-not-null', decimals: 1, sortField: 'confidence', sortOrder: '-' },
-      { id: '43becb8c-d286-4d2c-ab6e-eac98de8b9c1', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Missing Confidence', type: 'list', color: null, collection: 'stance', xAxis: 'title', yAxis: 'confidence', filter: 'confidence-null', sortField: 'confidence', sortOrder: '-' },
-      { id: '2ed2444f-ca71-4b2f-86f0-5639437661c6', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Election Issue Confidences', type: 'ordered-bar-chart', color: '#6644FF', collection: 'electionIssue', xAxis: 'name', yAxis: 'confidence', horizontal: true, sortField: 'confidence', sortOrder: '-' },
-      { id: '836c9762-3d1d-4733-bb08-f5b0557c47fe', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Issue Stances', type: 'ordered-bar-chart', color: '#2ECDA7', collection: 'issue', xAxis: 'name', yAxis: 'stancesCount', horizontal: true, sortField: 'stancesCount', sortOrder: '-' }
+      { id: 'f3229cd6-5b4c-4635-ab65-a0e203dd066d', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Confidences', type: 'ordered-bar-chart', placement: 'contest', color: '#3399FF', collection: 'stance', xAxis: 'title', yAxis: 'confidence', horizontal: true, filter: 'confidence-not-null', decimals: 1, sortField: 'confidence', sortOrder: '-' },
+      { id: '43becb8c-d286-4d2c-ab6e-eac98de8b9c1', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Missing Confidence', type: 'list', placement: 'contest', color: null, collection: 'stance', xAxis: 'title', yAxis: 'confidence', filter: 'confidence-null', sortField: 'title', sortOrder: 'asc' },
+      { id: '2ed2444f-ca71-4b2f-86f0-5639437661c6', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Election Issue Confidences', type: 'ordered-bar-chart', placement: 'election', color: '#6644FF', collection: 'electionIssue', xAxis: 'name', yAxis: 'confidence', horizontal: true, sortField: 'confidence', sortOrder: '-' },
+      { id: '836c9762-3d1d-4733-bb08-f5b0557c47fe', dashboardId: 'ff2322a9-e257-4d27-80b6-e1d841f4f3fd', name: 'Issue Stances', type: 'ordered-bar-chart', placement: 'contest', color: '#2ECDA7', collection: 'issue', xAxis: 'name', yAxis: 'stancesCount', horizontal: true, sortField: 'stancesCount', sortOrder: '-' }
     ]
   }
 ];

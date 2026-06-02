@@ -628,14 +628,23 @@ describe('Directus report data operations', () => {
     ]);
 
     const stancesDashboard = reportDashboards.find((dashboard) => dashboard.name === 'Stances')!;
-    expect(getReportPanelData(stancesDashboard.panels[0], data)).toEqual([
+    const stanceConfidencesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Confidences')!;
+    const missingConfidencePanel = stancesDashboard.panels.find((panel) => panel.name === 'Missing Confidence')!;
+    const electionIssueConfidencesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Election Issue Confidences')!;
+    const issueStancesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Issue Stances')!;
+
+    expect(stanceConfidencesPanel.placement).toBe('contest');
+    expect(missingConfidencePanel.placement).toBe('contest');
+    expect(electionIssueConfidencesPanel.placement).toBe('election');
+    expect(issueStancesPanel.placement).toBe('contest');
+    expect(getReportPanelData(stanceConfidencesPanel, data)).toEqual([
       { id: 5, label: 'Known confidence', value: 88.8, color: '#3399FF' }
     ]);
-    expect(getReportPanelData(stancesDashboard.panels[1], data)).toEqual([
+    expect(getReportPanelData(missingConfidencePanel, data)).toEqual([
       { id: 6, label: 'Missing confidence', value: null, color: null }
     ]);
-    expect(getReportPanelData(stancesDashboard.panels[2], data)).toEqual([]);
-    expect(getReportPanelData(stancesDashboard.panels[3], data)).toEqual([
+    expect(getReportPanelData(electionIssueConfidencesPanel, data)).toEqual([]);
+    expect(getReportPanelData(issueStancesPanel, data)).toEqual([
       { id: 3, label: 'High confidence', value: 1, color: '#2ECDA7' },
       { id: 4, label: 'Low confidence', value: 1, color: '#2ECDA7' }
     ]);
@@ -688,11 +697,19 @@ describe('Directus report data operations', () => {
     expect(getReportPanelData(candidatesDashboard.panels[0], data, election, data.contests[1]).map((item) => item.id)).toEqual([3]);
 
     const stancesDashboard = reportDashboards.find((dashboard) => dashboard.name === 'Stances')!;
-    expect(getReportPanelData(stancesDashboard.panels[0], data, election).map((item) => item.label)).toEqual(['Included', 'Runoff']);
-    expect(getReportPanelData(stancesDashboard.panels[2], data, election)).toEqual([{ id: 10, label: 'Privacy', value: 50, color: '#6644FF' }]);
-    expect(getReportPanelData(stancesDashboard.panels[2], data, election, data.contests[0])).toEqual([{ id: 10, label: 'Privacy', value: 80, color: '#6644FF' }]);
-    expect(getReportPanelData(stancesDashboard.panels[2], data, election, data.contests[1])).toEqual([{ id: 10, label: 'Privacy', value: 20, color: '#6644FF' }]);
-    expect(getReportPanelData(stancesDashboard.panels[3], data, election)).toEqual([{ id: 10, label: 'Privacy', value: 3, color: '#2ECDA7' }]);
+    const stanceConfidencesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Confidences')!;
+    const missingConfidencePanel = stancesDashboard.panels.find((panel) => panel.name === 'Missing Confidence')!;
+    const electionIssueConfidencesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Election Issue Confidences')!;
+    const issueStancesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Issue Stances')!;
+    expect(getReportPanelData(stanceConfidencesPanel, data, election).map((item) => item.label)).toEqual(['Included', 'Runoff']);
+    expect(getReportPanelData(stanceConfidencesPanel, data, election, data.contests[0]).map((item) => item.label)).toEqual(['Included']);
+    expect(getReportPanelData(missingConfidencePanel, data, election, data.contests[0]).map((item) => item.label)).toEqual(['Ignored null']);
+    expect(getReportPanelData(missingConfidencePanel, data, election, data.contests[1])).toEqual([]);
+    expect(getReportPanelData(electionIssueConfidencesPanel, data, election)).toEqual([{ id: 10, label: 'Privacy', value: 50, color: '#6644FF' }]);
+    expect(getReportPanelData(electionIssueConfidencesPanel, data, election, data.contests[0])).toEqual([{ id: 10, label: 'Privacy', value: 80, color: '#6644FF' }]);
+    expect(getReportPanelData(electionIssueConfidencesPanel, data, election, data.contests[1])).toEqual([{ id: 10, label: 'Privacy', value: 20, color: '#6644FF' }]);
+    expect(getReportPanelData(issueStancesPanel, data, election)).toEqual([{ id: 10, label: 'Privacy', value: 3, color: '#2ECDA7' }]);
+    expect(getReportPanelData(issueStancesPanel, data, election, data.contests[0])).toEqual([{ id: 10, label: 'Privacy', value: 2, color: '#2ECDA7' }]);
     expect(getCandidateContestRows(data, election)).toEqual([
       { contest: data.contests[0], candidates: scoreElection(election, { ...data, contests: [data.contests[0]] }) },
       { contest: data.contests[1], candidates: scoreElection(election, { ...data, contests: [data.contests[1]] }) }
@@ -747,7 +764,8 @@ describe('Directus report data operations', () => {
     ]);
 
     const stancesDashboard = reportDashboards.find((dashboard) => dashboard.name === 'Stances')!;
-    expect(getReportPanelData(stancesDashboard.panels[0], data, election).map((item) => item.label)).toEqual([
+    const stanceConfidencesPanel = stancesDashboard.panels.find((panel) => panel.name === 'Confidences')!;
+    expect(getReportPanelData(stanceConfidencesPanel, data, election).map((item) => item.label)).toEqual([
       'Chase Russell Oliver - Ballot access',
       'Chase Russell Oliver - Civil liberties'
     ]);

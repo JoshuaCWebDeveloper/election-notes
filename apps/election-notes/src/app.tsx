@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, Copy, Download, Menu, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { canRestoreSeedData, createBackupJson, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
 import { candidateFromInlineName, contestFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
@@ -911,17 +911,17 @@ function ReportsView({
   }));
   const contests = contestScores.flatMap((contestScore) => contestScore.contest ? [contestScore.contest] : []);
   const contestDashboards = reportDashboards
-    .map((dashboard) => ({ ...dashboard, panels: dashboard.panels.filter(isContestSpecificPanel) }))
+    .map((dashboard) => ({ ...dashboard, panels: dashboard.panels.filter((panel) => panel.placement === 'contest') }))
     .filter((dashboard) => dashboard.panels.length > 0);
   const generalDashboards = reportDashboards
-    .map((dashboard) => ({ ...dashboard, panels: dashboard.panels.filter((panel) => !isContestSpecificPanel(panel)) }))
+    .map((dashboard) => ({ ...dashboard, panels: dashboard.panels.filter((panel) => panel.placement === 'election') }))
     .filter((dashboard) => dashboard.panels.length > 0);
 
   return (
     <section className="reports" aria-labelledby="reports-title">
       <div className="reports-heading">
         <div>
-          <h2 id="reports-title">Reports</h2>
+          <h2 id="reports-title">Election Data</h2>
         </div>
       </div>
       <div className="dashboard-grid">
@@ -997,50 +997,46 @@ function ElectionScoringReport({
 }) {
   const isExpandedContest = expandedContestId === contestScore.contest?.id;
   return (
-    <article className="report-panel wide-panel">
-      <div className="report-panel-heading">
-        <h4>Election scoring</h4>
-      </div>
-      <div className="score-contest">
-        {contestScore.candidates.length === 0 && <p>No candidates selected.</p>}
-        <div className="score-grid">
-          {contestScore.candidates.map((score) => {
-            const isExpandedCandidate = isExpandedContest && expandedCandidateId === score.candidate.id;
-            return (
-              <button
-                className={isExpandedCandidate ? 'score-card expanded' : 'score-card'}
-                key={score.candidate.id}
-                type="button"
-                onClick={() => onExpansionChange(contestScore.contest?.id ?? null, isExpandedCandidate ? null : score.candidate.id)}
-              >
-                {isExpandedCandidate ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                <span>
-                  <strong>{candidateName(score.candidate)}</strong>
-                  <b>{formatScore(score.score)} points</b>
-                </span>
-              </button>
-            );
-          })}
+    <section className="dashboard">
+      <h4 className="dashboard-title">Candidate Data Entry</h4>
+      <article className="report-panel wide-panel">
+        <div className="score-contest">
+          {contestScore.candidates.length === 0 && <p>No candidates selected.</p>}
+          <div className="score-grid">
+            {contestScore.candidates.map((score) => {
+              const isExpandedCandidate = isExpandedContest && expandedCandidateId === score.candidate.id;
+              return (
+                <button
+                  className={isExpandedCandidate ? 'score-card expanded' : 'score-card'}
+                  key={score.candidate.id}
+                  type="button"
+                  onClick={() => onExpansionChange(contestScore.contest?.id ?? null, isExpandedCandidate ? null : score.candidate.id)}
+                >
+                  {isExpandedCandidate ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  <span>
+                    <strong>{candidateName(score.candidate)}</strong>
+                    <b>{formatScore(score.score)} points</b>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {contestScore.candidates.map((score) => isExpandedContest && expandedCandidateId === score.candidate.id ? (
+            <CandidateStanceEditor
+              candidate={score.candidate}
+              db={db}
+              election={election}
+              expandedStanceId={expandedStanceId}
+              key={`stances-${score.candidate.id}`}
+              onDeleteEntity={onDeleteEntity}
+              onExpandedStanceChange={(stanceId) => onExpansionChange(contestScore.contest?.id ?? null, score.candidate.id, stanceId)}
+              onSaveEntity={onSaveEntity}
+            />
+          ) : null)}
         </div>
-        {contestScore.candidates.map((score) => isExpandedContest && expandedCandidateId === score.candidate.id ? (
-          <CandidateStanceEditor
-            candidate={score.candidate}
-            db={db}
-            election={election}
-            expandedStanceId={expandedStanceId}
-            key={`stances-${score.candidate.id}`}
-            onDeleteEntity={onDeleteEntity}
-            onExpandedStanceChange={(stanceId) => onExpansionChange(contestScore.contest?.id ?? null, score.candidate.id, stanceId)}
-            onSaveEntity={onSaveEntity}
-          />
-        ) : null)}
-      </div>
-    </article>
+      </article>
+    </section>
   );
-}
-
-function isContestSpecificPanel(panel: ReportPanel) {
-  return panel.type === 'candidate-contest' || panel.collection === 'candidate';
 }
 
 function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; db: Database; election: Election; panel: ReportPanel }) {
@@ -1100,9 +1096,13 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
           <h4>{panel.name}</h4>
           {sortControl}
         </div>
-        <ul className="report-list">
-          {sortedData.map((item) => <li key={item.id}>{item.label}</li>)}
-        </ul>
+        {sortedData.length === 0 ? (
+          <p className="empty-report">No report data.</p>
+        ) : (
+          <ul className="report-list">
+            {sortedData.map((item) => <li key={item.id}>{item.label}</li>)}
+          </ul>
+        )}
       </article>
     );
   }
