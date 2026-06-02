@@ -432,6 +432,10 @@ header {
   grid-template-columns: minmax(12rem, 16rem) minmax(18rem, 1fr) minmax(4rem, auto);
 }
 
+.bar-chart .bar-row span {
+  text-align: right;
+}
+
 .bar-row span,
 .contest-row span {
   color: #384456;
@@ -531,7 +535,7 @@ header {
 }
 
 .contest-grid {
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
 }
 
 .contest-grid > div {
@@ -547,7 +551,7 @@ header {
 }
 
 .contest-row {
-  grid-template-columns: 1fr 5rem;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 h2,
