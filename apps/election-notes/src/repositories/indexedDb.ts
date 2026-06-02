@@ -15,7 +15,7 @@ export const storeNames: StoreName[] = [
 ];
 
 const databaseName = 'election-notes';
-const databaseVersion = 9;
+const databaseVersion = 10;
 const metadataStoreName = 'metadata';
 const legacyStorageKey = 'election-notes-db-v1';
 const initializedKey = 'initialized';
@@ -70,6 +70,9 @@ export function openDatabase(): Promise<IDBDatabase> {
       if (event.oldVersion > 0 && event.oldVersion < 9) {
         migrateStancePointsAndLabel(request.transaction);
       }
+      if (event.oldVersion > 0 && event.oldVersion < 10) {
+        migrateContestNotes(request.transaction);
+      }
     };
 
     request.onsuccess = () => resolve(request.result);
@@ -99,6 +102,7 @@ function migrateLegacyElectionCandidates(transaction: IDBTransaction | null): vo
         id: nextContestId++,
         electionId: election.id,
         name: `${election.name || 'Election'} contest`,
+        notes: null,
         candidateIds
       });
     }
@@ -209,6 +213,24 @@ function migrateStancePointsAndLabel(transaction: IDBTransaction | null): void {
 
     const { points: _points, label: _label, ...nextStance } = cursor.value as Record<string, unknown>;
     cursor.update(nextStance);
+    cursor.continue();
+  };
+}
+
+function migrateContestNotes(transaction: IDBTransaction | null): void {
+  if (!transaction) return;
+  const contests = transaction.objectStore('contests');
+  const request = contests.openCursor();
+
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return;
+
+    const contest = cursor.value as Record<string, unknown>;
+    cursor.update({
+      ...contest,
+      notes: typeof contest.notes === 'string' ? contest.notes : null
+    });
     cursor.continue();
   };
 }

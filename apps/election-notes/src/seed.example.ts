@@ -111,6 +111,7 @@ export const seedData: Database = {
       id: 1,
       electionId: 1,
       name: 'Example Local Election contest',
+      notes: null,
       candidateIds: [1, 2]
     }
   ]

@@ -303,6 +303,7 @@ const tabs: Tab[] = [
 type RouteState = {
   tabKey: EntityKey;
   selectedId: Id | null;
+  expandedContestId: Id | null;
   expandedCandidateId: Id | null;
   expandedStanceId: Id | null;
   isKnownPath: boolean;
@@ -321,19 +322,27 @@ const tabPathByKey: Partial<Record<EntityKey, string>> = {
 function parseRoute(pathname: string): RouteState {
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length === 0) {
-    return { tabKey: 'elections', selectedId: null, expandedCandidateId: null, expandedStanceId: null, isKnownPath: true };
+    return { tabKey: 'elections', selectedId: null, expandedContestId: null, expandedCandidateId: null, expandedStanceId: null, isKnownPath: true };
   }
 
   const tab = tabs.find((item) => tabPathByKey[item.key] === segments[0]);
   if (!tab) {
-    return { tabKey: 'elections', selectedId: null, expandedCandidateId: null, expandedStanceId: null, isKnownPath: false };
+    return { tabKey: 'elections', selectedId: null, expandedContestId: null, expandedCandidateId: null, expandedStanceId: null, isKnownPath: false };
   }
 
+  const isElectionRoute = tab.key === 'elections';
+  const hasContestExpansion = isElectionRoute && segments[2] === 'contests';
+  const hasLegacyCandidateExpansion = isElectionRoute && segments[2] === 'candidates';
   return {
     tabKey: tab.key,
     selectedId: parseIdSegment(segments[1]),
-    expandedCandidateId: tab.key === 'elections' && segments[2] === 'candidates' ? parseIdSegment(segments[3]) : null,
-    expandedStanceId: tab.key === 'elections' && segments[2] === 'candidates' && segments[4] === 'stances' ? parseIdSegment(segments[5]) : null,
+    expandedContestId: hasContestExpansion ? parseIdSegment(segments[3]) : null,
+    expandedCandidateId: hasContestExpansion && segments[4] === 'candidates'
+      ? parseIdSegment(segments[5])
+      : hasLegacyCandidateExpansion ? parseIdSegment(segments[3]) : null,
+    expandedStanceId: hasContestExpansion && segments[4] === 'candidates' && segments[6] === 'stances'
+      ? parseIdSegment(segments[7])
+      : hasLegacyCandidateExpansion && segments[4] === 'stances' ? parseIdSegment(segments[5]) : null,
     isKnownPath: true
   };
 }
@@ -350,6 +359,14 @@ function parseIdSegment(segment: string | undefined) {
   if (segment === undefined) return null;
   const id = Number(segment);
   return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function pathForElectionExpansion(electionId: Id, contestId: Id | null, candidateId: Id | null, stanceId: Id | null = null) {
+  const electionPath = `/elections/${electionId}`;
+  if (candidateId === null) return electionPath;
+  const contestPath = contestId === null ? electionPath : `${electionPath}/contests/${contestId}`;
+  const candidatePath = `${contestPath}/candidates/${candidateId}`;
+  return stanceId === null ? candidatePath : `${candidatePath}/stances/${stanceId}`;
 }
 
 export function App() {
@@ -415,10 +432,23 @@ export function App() {
     if (active.key === 'elections' && route.selectedId !== null) {
       const election = tabRows.find((row) => row.id === route.selectedId) as Election | undefined;
       if (!election) return;
-      const candidateIds = new Set(getCandidateContestRows(db, election).flatMap((contestScore) => contestScore.candidates.map((score) => score.candidate.id)));
+      const contestScores = getCandidateContestRows(db, election);
+      const routeContest = route.expandedContestId === null ? null : contestScores.find((contestScore) => contestScore.contest?.id === route.expandedContestId) ?? null;
+      if (route.expandedContestId !== null && routeContest === null) {
+        navigate(pathForSelection('elections', route.selectedId), { replace: true });
+        return;
+      }
+      const candidateIds = new Set((routeContest ? [routeContest] : contestScores).flatMap((contestScore) => contestScore.candidates.map((score) => score.candidate.id)));
       if (route.expandedCandidateId !== null && !candidateIds.has(route.expandedCandidateId)) {
         navigate(pathForSelection('elections', route.selectedId), { replace: true });
         return;
+      }
+      if (route.expandedContestId === null && route.expandedCandidateId !== null) {
+        const matchingContestScores = contestScores.filter((contestScore) => contestScore.candidates.some((score) => score.candidate.id === route.expandedCandidateId));
+        if (matchingContestScores.length === 1 && matchingContestScores[0].contest) {
+          navigate(pathForElectionExpansion(route.selectedId, matchingContestScores[0].contest.id, route.expandedCandidateId, route.expandedStanceId), { replace: true });
+          return;
+        }
       }
       const stance = route.expandedStanceId === null ? null : db.stances.find((item) => item.id === route.expandedStanceId) ?? null;
       if (
@@ -426,10 +456,10 @@ export function App() {
         route.expandedStanceId !== null &&
         (stance === null || stance.candidate !== route.expandedCandidateId || !election.issues.some((issue) => issue.issueId === stance.issue))
       ) {
-        navigate(pathForSelection('elections', route.selectedId, route.expandedCandidateId), { replace: true });
+        navigate(pathForElectionExpansion(route.selectedId, route.expandedContestId, route.expandedCandidateId), { replace: true });
       }
     }
-  }, [active.key, db, navigate, route.expandedCandidateId, route.expandedStanceId, route.isKnownPath, route.selectedId]);
+  }, [active.key, db, navigate, route.expandedCandidateId, route.expandedContestId, route.expandedStanceId, route.isKnownPath, route.selectedId]);
 
   useEffect(() => {
     setElectionMenuOpen(false);
@@ -439,8 +469,8 @@ export function App() {
     navigate(pathForSelection(tabKey, id), { replace: options?.replace ?? false });
   }
 
-  function navigateToElectionExpansion(electionId: Id, candidateId: Id | null, stanceId: Id | null = null) {
-    navigate(pathForSelection('elections', electionId, candidateId, stanceId));
+  function navigateToElectionExpansion(electionId: Id, contestId: Id | null, candidateId: Id | null, stanceId: Id | null = null) {
+    navigate(pathForElectionExpansion(electionId, contestId, candidateId, stanceId));
   }
 
   async function save(row: Database[EntityKey][number]) {
@@ -750,9 +780,10 @@ export function App() {
                 onDeleteContest={(id) => deleteFromStore('contests', id)}
                 onSaveElectionStore={saveToElectionStore}
                 onDeleteElectionStore={deleteFromElectionStore}
+                expandedContestId={route.expandedContestId}
                 expandedCandidateId={route.expandedCandidateId}
                 expandedStanceId={route.expandedStanceId}
-                onElectionExpansionChange={(candidateId, stanceId) => navigateToElectionExpansion(selected.id, candidateId, stanceId)}
+                onElectionExpansionChange={(contestId, candidateId, stanceId) => navigateToElectionExpansion(selected.id, contestId, candidateId, stanceId)}
                 onSave={save}
                 onDelete={remove}
               />
@@ -809,9 +840,10 @@ export function App() {
                 onDeleteContest={(id) => deleteFromStore('contests', id)}
                 onSaveElectionStore={saveToElectionStore}
                 onDeleteElectionStore={deleteFromElectionStore}
+                expandedContestId={route.expandedContestId}
                 expandedCandidateId={route.expandedCandidateId}
                 expandedStanceId={route.expandedStanceId}
-                onElectionExpansionChange={(candidateId, stanceId) => navigateToElectionExpansion(selected.id, candidateId, stanceId)}
+                onElectionExpansionChange={(contestId, candidateId, stanceId) => navigateToElectionExpansion(selected.id, contestId, candidateId, stanceId)}
                 onSave={save}
                 onDelete={remove}
               />
@@ -854,8 +886,30 @@ function ElectionCardList({
   );
 }
 
-function ReportsView({ db, election }: { db: Database; election: Election }) {
-  const contests = getElectionContests(db, election.id);
+function ReportsView({
+  db,
+  election,
+  expandedContestId,
+  expandedCandidateId,
+  expandedStanceId,
+  onDeleteEntity,
+  onExpansionChange,
+  onSaveEntity
+}: {
+  db: Database;
+  election: Election;
+  expandedContestId: Id | null;
+  expandedCandidateId: Id | null;
+  expandedStanceId: Id | null;
+  onDeleteEntity: <TStore extends EntityKey>(storeName: TStore, id: Id, electionId: Id) => Promise<void>;
+  onExpansionChange: (contestId: Id | null, candidateId: Id | null, stanceId?: Id | null) => void;
+  onSaveEntity: <TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number], electionId: Id) => Promise<void>;
+}) {
+  const contestScores = getCandidateContestRows(db, election).map((contestScore) => ({
+    ...contestScore,
+    candidates: [...contestScore.candidates].sort((left, right) => compareCandidatesByLastWord(left.candidate, right.candidate))
+  }));
+  const contests = contestScores.flatMap((contestScore) => contestScore.contest ? [contestScore.contest] : []);
   const contestDashboards = reportDashboards
     .map((dashboard) => ({ ...dashboard, panels: dashboard.panels.filter(isContestSpecificPanel) }))
     .filter((dashboard) => dashboard.panels.length > 0);
@@ -881,6 +935,17 @@ function ReportsView({ db, election }: { db: Database; election: Election }) {
           <section className="contest-report-group" key={contest.id}>
             <h3>{contest.name}</h3>
             <div className="dashboard-grid">
+              <ElectionScoringReport
+                contestScore={contestScores.find((row) => row.contest?.id === contest.id) ?? { contest, candidates: [] }}
+                db={db}
+                election={election}
+                expandedContestId={expandedContestId}
+                expandedCandidateId={expandedCandidateId}
+                expandedStanceId={expandedStanceId}
+                onDeleteEntity={onDeleteEntity}
+                onExpansionChange={onExpansionChange}
+                onSaveEntity={onSaveEntity}
+              />
               {contestDashboards.map((dashboard) => (
                 <section className="dashboard" key={dashboard.id}>
                   <h4 className="dashboard-title">{dashboard.name}</h4>
@@ -906,6 +971,71 @@ function ReportsView({ db, election }: { db: Database; election: Election }) {
         ))}
       </div>
     </section>
+  );
+}
+
+function ElectionScoringReport({
+  contestScore,
+  db,
+  election,
+  expandedContestId,
+  expandedCandidateId,
+  expandedStanceId,
+  onDeleteEntity,
+  onExpansionChange,
+  onSaveEntity
+}: {
+  contestScore: { contest: Contest | null; candidates: Array<{ candidate: Candidate; score: number }> };
+  db: Database;
+  election: Election;
+  expandedContestId: Id | null;
+  expandedCandidateId: Id | null;
+  expandedStanceId: Id | null;
+  onDeleteEntity: <TStore extends EntityKey>(storeName: TStore, id: Id, electionId: Id) => Promise<void>;
+  onExpansionChange: (contestId: Id | null, candidateId: Id | null, stanceId?: Id | null) => void;
+  onSaveEntity: <TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number], electionId: Id) => Promise<void>;
+}) {
+  const isExpandedContest = expandedContestId === contestScore.contest?.id;
+  return (
+    <article className="report-panel wide-panel">
+      <div className="report-panel-heading">
+        <h4>Election scoring</h4>
+      </div>
+      <div className="score-contest">
+        {contestScore.candidates.length === 0 && <p>No candidates selected.</p>}
+        <div className="score-grid">
+          {contestScore.candidates.map((score) => {
+            const isExpandedCandidate = isExpandedContest && expandedCandidateId === score.candidate.id;
+            return (
+              <button
+                className={isExpandedCandidate ? 'score-card expanded' : 'score-card'}
+                key={score.candidate.id}
+                type="button"
+                onClick={() => onExpansionChange(contestScore.contest?.id ?? null, isExpandedCandidate ? null : score.candidate.id)}
+              >
+                {isExpandedCandidate ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                <span>
+                  <strong>{candidateName(score.candidate)}</strong>
+                  <b>{formatScore(score.score)} points</b>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {contestScore.candidates.map((score) => isExpandedContest && expandedCandidateId === score.candidate.id ? (
+          <CandidateStanceEditor
+            candidate={score.candidate}
+            db={db}
+            election={election}
+            expandedStanceId={expandedStanceId}
+            key={`stances-${score.candidate.id}`}
+            onDeleteEntity={onDeleteEntity}
+            onExpandedStanceChange={(stanceId) => onExpansionChange(contestScore.contest?.id ?? null, score.candidate.id, stanceId)}
+            onSaveEntity={onSaveEntity}
+          />
+        ) : null)}
+      </div>
+    </article>
   );
 }
 
@@ -1131,6 +1261,7 @@ function Editor({
   onDeleteContest,
   onSaveElectionStore,
   onDeleteElectionStore,
+  expandedContestId,
   expandedCandidateId,
   expandedStanceId,
   onElectionExpansionChange,
@@ -1147,17 +1278,14 @@ function Editor({
   onDeleteContest: (id: Id) => void;
   onSaveElectionStore: <TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number], electionId: Id) => Promise<void>;
   onDeleteElectionStore: <TStore extends EntityKey>(storeName: TStore, id: Id, electionId: Id) => Promise<void>;
+  expandedContestId: Id | null;
   expandedCandidateId: Id | null;
   expandedStanceId: Id | null;
-  onElectionExpansionChange: (candidateId: Id | null, stanceId?: Id | null) => void;
+  onElectionExpansionChange: (contestId: Id | null, candidateId: Id | null, stanceId?: Id | null) => void;
   onSave: (row: Database[EntityKey][number]) => void | Promise<void>;
   onDelete: (id: Id) => void;
 }) {
   const [draft, setDraft] = useState(row);
-  const contestScores = useMemo(() => tab.key === 'elections' ? getCandidateContestRows(db, draft as Election).map((contestScore) => ({
-    ...contestScore,
-    candidates: [...contestScore.candidates].sort((left, right) => compareCandidatesByLastWord(left.candidate, right.candidate))
-  })) : [], [db, draft, tab.key]);
 
   function update(key: string, value: unknown) {
     setDraft((current) => ({ ...current, [key]: value }) as typeof row);
@@ -1234,46 +1362,16 @@ function Editor({
       )}
       {tab.key === 'elections' && (
         <>
-          <section className="scores">
-            <h4>Election scoring</h4>
-            <div className="score-contest-grid">
-              {contestScores.length === 0 && <p>No contests created.</p>}
-              {contestScores.map((contestScore) => (
-                <div className="score-contest" key={contestScore.contest?.id ?? 'legacy'}>
-                  <strong>{contestScore.contest?.name ?? 'Legacy candidate scores'}</strong>
-                  <div className="score-grid">
-                    {contestScore.candidates.map((score) => (
-                      <button
-                        className={expandedCandidateId === score.candidate.id ? 'score-card expanded' : 'score-card'}
-                        key={score.candidate.id}
-                        type="button"
-                        onClick={() => onElectionExpansionChange(expandedCandidateId === score.candidate.id ? null : score.candidate.id)}
-                      >
-                        {expandedCandidateId === score.candidate.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                        <span>
-                          <strong>{candidateName(score.candidate)}</strong>
-                          <b>{formatScore(score.score)} points</b>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  {contestScore.candidates.map((score) => expandedCandidateId === score.candidate.id ? (
-                    <CandidateStanceEditor
-                      candidate={score.candidate}
-                      db={db}
-                      election={draft as Election}
-                      expandedStanceId={expandedStanceId}
-                      key={`stances-${score.candidate.id}`}
-                      onDeleteEntity={onDeleteElectionStore}
-                      onExpandedStanceChange={(stanceId) => onElectionExpansionChange(score.candidate.id, stanceId)}
-                      onSaveEntity={onSaveElectionStore}
-                    />
-                  ) : null)}
-                </div>
-              ))}
-            </div>
-          </section>
-          <ReportsView db={db} election={draft as Election} />
+          <ReportsView
+            db={db}
+            election={draft as Election}
+            expandedContestId={expandedContestId}
+            expandedCandidateId={expandedCandidateId}
+            expandedStanceId={expandedStanceId}
+            onDeleteEntity={onDeleteElectionStore}
+            onExpansionChange={onElectionExpansionChange}
+            onSaveEntity={onSaveElectionStore}
+          />
         </>
       )}
     </form>
@@ -1353,20 +1451,33 @@ function CandidateStanceEditor({
         {electionIssues.map(({ electionIssue, issue, stance }) => {
           const isExpanded = stance !== null && expandedStanceId === stance.id;
           const factCount = stance ? countStanceFacts(db, stance.id) : 0;
+          const stanceSummary = (
+            <div className="stance-row-summary">
+              <button
+                type="button"
+                onClick={() => { void toggleStanceRow(stance, electionIssue.issueId, isExpanded); }}
+              >
+                {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                <span>
+                  <strong>{issueName(issue)}</strong>
+                  <small>{stance ? `${stanceName(stance)} · ${formatScore(factCount)} linked facts` : 'No stance yet. Click to create and expand.'}</small>
+                </span>
+              </button>
+            </div>
+          );
           return (
-            <article className="stance-row" key={electionIssue.issueId}>
-              <div className="stance-row-summary">
-                <button
-                  type="button"
-                  onClick={() => { void toggleStanceRow(stance, electionIssue.issueId, isExpanded); }}
-                >
-                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                  <span>
-                    <strong>{issueName(issue)}</strong>
-                    <small>{stance ? `${stanceName(stance)} · rating ${formatScore(stance.rating)} · confidence ${formatScore(stance.confidence)} · ${formatScore(factCount)} linked facts` : 'No stance yet. Click to create and expand.'}</small>
-                  </span>
-                </button>
-              </div>
+            <article className={stance ? 'stance-row with-rating' : 'stance-row'} key={electionIssue.issueId}>
+              {stance ? (
+                <div className="stance-card-shell">
+                  <div className="stance-rating-badge">
+                    <strong>{formatScore(stance.rating)}</strong>
+                    <small>({formatScore(stance.confidence)}% Conf.)</small>
+                  </div>
+                  {stanceSummary}
+                </div>
+              ) : (
+                stanceSummary
+              )}
               {stance && isExpanded && (
                 <StanceDetailEditor
                   db={db}
@@ -1411,6 +1522,7 @@ function StanceDetailEditor({
   const filteredFacts = filterByName(availableFacts, factName, factSearch)
     .sort((left, right) => factName(left).localeCompare(factName(right), undefined, { sensitivity: 'base' }) || left.id - right.id);
   const newFactSummary = factSearch.trim();
+  const issue = db.issues.find((item) => item.id === stance.issue) ?? null;
 
   useEffect(() => {
     setDraft(stance);
@@ -1454,6 +1566,9 @@ function StanceDetailEditor({
 
   return (
     <div className="stance-detail" ref={detailRef}>
+      <section className="stance-issue-detail issue-card-copy" aria-label="Related issue details">
+        <span>{issue?.description || 'No description.'}</span>
+      </section>
       <div className="stance-form-grid">
         <label>Title<input value={draft.title ?? ''} onChange={(event) => setDraft({ ...draft, title: event.target.value || null })} /></label>
         <label>Rating<input type="number" step="any" value={draft.rating ?? ''} onChange={(event) => setDraft({ ...draft, rating: event.target.value === '' ? null : Number(event.target.value) })} /></label>
@@ -1473,6 +1588,9 @@ function StanceDetailEditor({
               focusDescription={fact.id === createdFactId}
               onDescriptionFocused={() => setCreatedFactId(null)}
               onSave={(nextFact) => onSaveEntity('facts', nextFact, electionId)}
+              onRemove={async () => {
+                await onDeleteEntity('stanceFacts', link.id, electionId);
+              }}
               onDelete={async () => {
                 await onDeleteEntity('stanceFacts', link.id, electionId);
                 await onDeleteEntity('facts', fact.id, electionId);
@@ -1520,12 +1638,14 @@ function FactInlineEditor({
   focusDescription = false,
   onDescriptionFocused,
   onSave,
+  onRemove,
   onDelete
 }: {
   fact: Fact;
   focusDescription?: boolean;
   onDescriptionFocused?: () => void;
   onSave: (fact: Fact) => void | Promise<void>;
+  onRemove: () => void | Promise<void>;
   onDelete: () => void | Promise<void>;
 }) {
   const editorRef = useRef<HTMLElement>(null);
@@ -1553,6 +1673,7 @@ function FactInlineEditor({
       <label>Summary<input value={draft.Summary ?? ''} onChange={(event) => setDraft({ ...draft, Summary: event.target.value || null })} /></label>
       <label>Description<textarea ref={descriptionRef} value={draft.description ?? ''} onChange={(event) => setDraft({ ...draft, description: event.target.value || null })} /></label>
       <div className="fact-actions">
+        <button type="button" onClick={() => { autoSave.flush(); return onRemove(); }}>Remove</button>
         <ConfirmableDeleteButton className="danger" onConfirm={() => { autoSave.cancel(); return onDelete(); }}>Delete</ConfirmableDeleteButton>
       </div>
     </section>
@@ -1693,14 +1814,17 @@ function ContestEditor({
   onDeleteContest: (id: Id) => void;
 }) {
   const [draft, setDraft] = useState(contest);
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [search, setSearch] = useState('');
   const included = candidates.filter((candidate) => draft.candidateIds.includes(candidate.id));
   const available = candidates.filter((candidate) => !draft.candidateIds.includes(candidate.id));
   const filtered = filterByName(available, candidateName, search);
+  const showNotes = draft.notes !== null || isEditingNotes;
 
   useEffect(() => {
     setDraft(contest);
+    setIsEditingNotes(false);
   }, [contest.id]);
 
   const autoSave = useDebouncedAutoSave(draft, onSaveContest);
@@ -1724,8 +1848,22 @@ function ContestEditor({
           value={draft.name}
           onChange={(event) => updateContest({ ...draft, name: event.target.value })}
         />
+        {!showNotes && (
+          <button type="button" className="contest-note-trigger" onClick={() => setIsEditingNotes(true)}>Add note</button>
+        )}
         <ConfirmableDeleteButton className="danger" aria-label={`Delete ${draft.name}`} onConfirm={() => { autoSave.cancel(); onDeleteContest(draft.id); }} />
       </div>
+      {showNotes && (
+        <label className="contest-notes">
+          Notes
+          <textarea
+            aria-label={`${draft.name} notes`}
+            value={draft.notes ?? ''}
+            onChange={(event) => updateContest({ ...draft, notes: event.target.value || null })}
+            placeholder="Contest notes"
+          />
+        </label>
+      )}
       <div className="included-list">
         {included.length === 0 && <p>No candidates selected.</p>}
         {included.map((candidate) => (

@@ -72,6 +72,7 @@ export type Contest = {
   id: Id;
   electionId: Id;
   name: string;
+  notes: string | null;
   candidateIds: Id[];
 };
 

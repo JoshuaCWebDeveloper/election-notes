@@ -851,13 +851,33 @@ textarea {
 .contest-editor-heading {
   display: grid;
   gap: 0.65rem;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
 .contest-editor-heading button {
   aspect-ratio: 1;
   padding: 0;
   width: 2.35rem;
+}
+
+.contest-editor-heading .contest-note-trigger {
+  aspect-ratio: auto;
+  color: #667487;
+  font-size: 0.82rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.55rem;
+  width: auto;
+}
+
+.contest-notes {
+  color: #667487;
+  font-size: 0.86rem;
+}
+
+.contest-notes textarea {
+  color: #1d2430;
+  font-size: 0.92rem;
+  min-height: 4.5rem;
 }
 
 .add-popover {
@@ -971,22 +991,10 @@ textarea {
   opacity: 0.72;
 }
 
-.scores {
-  border-top: 1px solid #d8dee6;
-  display: grid;
-  gap: 0.75rem;
-  padding-top: 0.85rem;
-}
-
 .score-grid {
   display: grid;
   gap: 0.5rem;
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-}
-
-.score-contest-grid {
-  display: grid;
-  gap: 0.75rem;
 }
 
 .score-contest {
@@ -994,7 +1002,7 @@ textarea {
   gap: 0.55rem;
 }
 
-.score-contest-grid p {
+.score-contest p {
   color: #667487;
   margin: 0;
 }
@@ -1073,6 +1081,39 @@ textarea {
   scroll-margin-top: 0.75rem;
 }
 
+.stance-card-shell {
+  align-items: stretch;
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: 5.25rem minmax(0, 1fr);
+}
+
+.stance-rating-badge {
+  align-items: center;
+  background: #176b87;
+  border-radius: 6px;
+  color: #ffffff;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  padding: 0.65rem 0.45rem;
+  text-align: center;
+}
+
+.stance-rating-badge strong {
+  align-self: center;
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.stance-rating-badge small {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .stance-row-summary {
   align-items: center;
   display: grid;
@@ -1108,6 +1149,13 @@ textarea {
 .stance-detail {
   border-top: 1px solid #d8dee6;
   padding-top: 0.65rem;
+}
+
+.stance-issue-detail {
+  background: #f8fafc;
+  border: 1px solid #d8dee6;
+  border-radius: 6px;
+  padding: 0.65rem;
 }
 
 .stance-form-grid {
@@ -1167,6 +1215,7 @@ textarea {
   .bar-row,
   .included-row,
   .issue-row,
+  .stance-card-shell,
   .stance-row-summary,
   .stance-form-grid {
     grid-template-columns: 1fr;

@@ -59,6 +59,7 @@ export function contestFromInlineName(name: string, electionId: Id, db: Database
     id: nextId(db.contests),
     electionId,
     name: name.trim() || 'New contest',
+    notes: null,
     candidateIds: []
   };
 }

@@ -81,6 +81,7 @@ const rowShape: Record<EntityKey, Record<string, ValidationRule>> = {
     id: 'requiredNumber',
     electionId: 'requiredNumber',
     name: 'requiredString',
+    notes: 'string',
     candidateIds: 'idArray'
   }
 };
@@ -177,7 +178,15 @@ export function validateDatabase(value: unknown): Database {
 export function normalizeDatabase(value: unknown): Database {
   if (!isRecord(value)) throw new Error('Backup must be a JSON object.');
 
-  const contests: Contest[] = Array.isArray(value.contests) ? structuredClone(value.contests as Contest[]) : [];
+  const contests: Contest[] = Array.isArray(value.contests)
+    ? value.contests.map((contest) => {
+      if (!isRecord(contest)) return structuredClone(contest) as Contest;
+      return {
+        ...structuredClone(contest),
+        notes: typeof contest.notes === 'string' ? contest.notes : null
+      } as Contest;
+    })
+    : [];
   const elections = Array.isArray(value.elections)
     ? (value.elections as Array<Record<string, unknown>>).map((election) => {
       const { candidateIds, ...nextElection } = election;
@@ -188,6 +197,7 @@ export function normalizeDatabase(value: unknown): Database {
           id: nextId(contests),
           electionId,
           name: `${typeof election.name === 'string' ? election.name : 'Election'} contest`,
+          notes: null,
           candidateIds: candidateIds.filter((id): id is Id => typeof id === 'number')
         });
       }

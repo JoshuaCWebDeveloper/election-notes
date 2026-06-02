@@ -14,7 +14,7 @@ import {
 } from '../repositories/indexedDb';
 import { exportBackup } from '../repositories/backup';
 import { canRestoreSeedData, createBackupJson, loadDatabase, resetDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, deleteEntity, validateDatabase } from './database';
-import { candidateFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName } from './elections';
+import { candidateFromInlineName, contestFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName } from './elections';
 import { countStanceFacts, getAvailableFactsForStance, getCandidateContestRows, getReportPanelData, reportDashboards, scoreElection } from './reports';
 
 const databaseName = 'election-notes';
@@ -191,6 +191,32 @@ function createLegacyStanceDatabase(): Promise<void> {
   });
 }
 
+function createLegacyContestDatabase(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(databaseName, 9);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore('contests', { keyPath: 'id' });
+    };
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const transaction = db.transaction('contests', 'readwrite');
+      transaction.objectStore('contests').put({
+        id: 1,
+        electionId: 2,
+        name: 'Legacy contest',
+        candidateIds: [3]
+      });
+      transaction.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    };
+  });
+}
+
 beforeEach(async () => {
   vi.unstubAllGlobals();
   vi.stubGlobal('localStorage', createLocalStorage());
@@ -203,7 +229,7 @@ describe.sequential('IndexedDB repository data operations', () => {
     const db = await openDatabase();
     try {
       expect(db.name).toBe(databaseName);
-      expect(db.version).toBe(9);
+      expect(db.version).toBe(10);
       expect(Array.from(db.objectStoreNames).sort()).toEqual([...storeNames, 'metadata'].sort());
     } finally {
       db.close();
@@ -309,6 +335,21 @@ describe.sequential('IndexedDB repository data operations', () => {
       description: null
     }]);
   });
+
+  it('migrates legacy IndexedDB contest rows by adding null notes', async () => {
+    await createLegacyContestDatabase();
+
+    const db = await openDatabase();
+    db.close();
+
+    expect((await loadAllStores()).contests).toEqual([{
+      id: 1,
+      electionId: 2,
+      name: 'Legacy contest',
+      notes: null,
+      candidateIds: [3]
+    }]);
+  });
 });
 
 describe.sequential('database service data operations', () => {
@@ -340,7 +381,7 @@ describe.sequential('database service data operations', () => {
     const expected = {
       ...legacy,
       elections: [{ id: 201, name: 'Legacy election', date: null, date_updated: null, description: null, issues: [] }],
-      contests: [{ id: 1, electionId: 201, name: 'Legacy election contest', candidateIds: [101] }]
+      contests: [{ id: 1, electionId: 201, name: 'Legacy election contest', notes: null, candidateIds: [101] }]
     };
     localStorage.setItem(legacyStorageKey, JSON.stringify(legacyJson));
 
@@ -370,8 +411,8 @@ describe.sequential('database service data operations', () => {
         { id: 2, name: 'Needs migration', date: null, date_updated: null, description: null, issues: [] }
       ],
       contests: [
-        { id: 5, electionId: 1, name: 'Existing contest', candidateIds: [10] },
-        { id: 6, electionId: 2, name: 'Needs migration contest', candidateIds: [20] }
+        { id: 5, electionId: 1, name: 'Existing contest', notes: null, candidateIds: [10] },
+        { id: 6, electionId: 2, name: 'Needs migration contest', notes: null, candidateIds: [20] }
       ]
     });
   });
@@ -612,7 +653,7 @@ describe('Directus report data operations', () => {
       { id: 21, date_created: null, date_updated: null, title: null, candidate: 2, issue: 10, rating: 25, confidence: null, description: null }
     );
     data.elections.push({ id: 30, name: 'General', date: null, date_updated: null, description: null, issues: [{ issueId: 10, points: 80 }] });
-    data.contests.push({ id: 31, electionId: 30, name: 'General contest', candidateIds: [1, 2] });
+    data.contests.push({ id: 31, electionId: 30, name: 'General contest', notes: null, candidateIds: [1, 2] });
 
     expect(scoreElection(data.elections[0], data).map((row) => [row.candidate.id, row.score])).toEqual([[1, 80], [2, 20]]);
     expect(getCandidateContestRows(data)).toEqual([{ contest: data.contests[0], candidates: scoreElection(data.elections[0], data) }]);
@@ -639,8 +680,8 @@ describe('Directus report data operations', () => {
       { id: 23, date_created: null, date_updated: null, title: 'Excluded issue', candidate: 3, issue: 11, rating: 100, confidence: 90, description: null }
     );
     const election = { id: 30, name: 'General', date: null, date_updated: null, description: null, issues: [{ issueId: 10, points: 80 }] };
-    data.contests.push({ id: 31, electionId: 30, name: 'General contest', candidateIds: [1, 2] });
-    data.contests.push({ id: 32, electionId: 30, name: 'Runoff contest', candidateIds: [3] });
+    data.contests.push({ id: 31, electionId: 30, name: 'General contest', notes: null, candidateIds: [1, 2] });
+    data.contests.push({ id: 32, electionId: 30, name: 'Runoff contest', notes: null, candidateIds: [3] });
 
     const candidatesDashboard = reportDashboards.find((dashboard) => dashboard.name === 'Candidates')!;
     expect(getReportPanelData(candidatesDashboard.panels[0], data, election, data.contests[0]).map((item) => item.id)).toEqual([1, 2]);
@@ -688,7 +729,7 @@ describe('Directus report data operations', () => {
       description: null,
       issues: [{ issueId: 20, points: 3500 }, { issueId: 21, points: 6000 }]
     };
-    const contest = { id: 41, electionId: 40, name: 'General contest', candidateIds: [10] };
+    const contest = { id: 41, electionId: 40, name: 'General contest', notes: null, candidateIds: [10] };
     data.contests.push(contest);
 
     const candidatesDashboard = reportDashboards.find((dashboard) => dashboard.name === 'Candidates')!;
@@ -725,7 +766,7 @@ describe('election UX helpers', () => {
       issues: [{ issueId: 5, points: 25 }]
     };
     data.elections.push({ ...election }, { ...election, id: 7, name: 'Other' });
-    data.contests.push({ id: 10, electionId: 3, name: 'Mayor', candidateIds: [1, 2] });
+    data.contests.push({ id: 10, electionId: 3, name: 'Mayor', notes: 'Ballot order notes', candidateIds: [1, 2] });
 
     const copy = duplicateElection(election, data, '2026-05-02T00:00:00.000Z');
     const contests = duplicateElectionContests(election.id, copy.id, data);
@@ -738,7 +779,7 @@ describe('election UX helpers', () => {
       description: 'Copied from Primary.\n\nOriginal notes',
       issues: [{ issueId: 5, points: 25 }]
     });
-    expect(contests).toEqual([{ id: 11, electionId: 8, name: 'Mayor', candidateIds: [1, 2] }]);
+    expect(contests).toEqual([{ id: 11, electionId: 8, name: 'Mayor', notes: 'Ballot order notes', candidateIds: [1, 2] }]);
     expect(copy).not.toBe(election);
     expect(copy.issues).not.toBe(election.issues);
   });
@@ -762,6 +803,13 @@ describe('election UX helpers', () => {
       id: 5,
       name: 'Ballot access',
       description: null
+    });
+    expect(contestFromInlineName('Mayor', 9, data)).toEqual({
+      id: 1,
+      electionId: 9,
+      name: 'Mayor',
+      notes: null,
+      candidateIds: []
     });
   });
 });
