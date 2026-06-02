@@ -225,6 +225,7 @@ header {
 .dashboard-grid,
 .panel-grid,
 .contest-grid {
+  align-items: start;
   display: grid;
   gap: 0.75rem;
   min-width: 0;
@@ -264,12 +265,16 @@ header {
 }
 
 .report-panel {
+  align-content: start;
+  align-self: start;
   background: #ffffff;
   border: 1px solid #d8dee6;
   border-radius: 8px;
   display: grid;
   gap: 0.6rem;
+  max-height: min(32rem, 72vh);
   min-width: 0;
+  overflow: auto;
   padding: 0.8rem;
 }
 
@@ -354,6 +359,7 @@ header {
 }
 
 .bar-chart {
+  align-content: start;
   background-image: linear-gradient(to right, transparent 0, transparent 24%, #edf1f6 24.4%, transparent 24.8%, transparent 49%, #edf1f6 49.4%, transparent 49.8%, transparent 74%, #edf1f6 74.4%, transparent 74.8%);
   border-bottom: 1px solid #9aa8b8;
   border-left: 1px solid #9aa8b8;
