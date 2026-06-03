@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronRight, Copy, Download, Menu, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { getReportChartLayout, ReportChart } from './components/reportChart';
 import { canRestoreSeedData, createBackupJson, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
 import { candidateFromInlineName, contestFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
 import { averageIssueConfidence, countIssueStances, countStanceFacts, getAvailableFactsForStance, getCandidateContestRows, getElectionCandidateCount, getElectionContestCount, getElectionContests, getReportPanelData, reportDashboards, type ReportDatum, type ReportPanel } from './services/reports';
@@ -1134,8 +1135,8 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
         <h4>{panel.name}</h4>
         {sortControl}
       </div>
-      <div className={panel.horizontal === true ? 'report-panel-body chart-report-body horizontal-chart-report-body' : 'report-panel-body chart-report-body vertical-chart-report-body'}>
-        <BarChart data={sortedData} horizontal={panel.horizontal === true} />
+      <div className="report-panel-body chart-report-body">
+        <ReportChart data={sortedData} layout={getReportChartLayout(panel)} />
       </div>
     </article>
   );
@@ -1219,58 +1220,6 @@ function candidateReportValueLabel(panel: ReportPanel) {
   if (panel.yAxis === 'stancesCount') return 'Stances';
   if (panel.yAxis === 'confidenceScoreProduct') return 'Confidence Score Product';
   return panel.name;
-}
-
-function BarChart({ data, horizontal }: { data: ReportDatum[]; horizontal: boolean }) {
-  const max = Math.max(1, ...data.map((item) => Math.abs(item.value ?? 0)));
-  if (data.length === 0) return <p className="empty-report">No report data.</p>;
-  if (!horizontal) {
-    return (
-      <div className="column-chart">
-        <div className="chart-plot">
-          {data.map((item) => {
-            const percent = Math.max(1, Math.abs(item.value ?? 0) / max * 100);
-            return (
-              <div className="chart-column" key={item.id}>
-                <b>{formatScore(item.value)}</b>
-                <i
-                  aria-label={`${item.label}: ${formatScore(item.value)}`}
-                  style={{
-                    '--bar-percent': `${percent}%`,
-                    background: item.color ?? '#176b87'
-                  } as CSSProperties}
-                />
-                <span>{item.label}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bar-chart">
-      {data.map((item) => {
-        const percent = Math.max(1, Math.abs(item.value ?? 0) / max * 100);
-        return (
-          <div className="bar-row" key={item.id}>
-            <span>{item.label}</span>
-            <div className="bar-axis">
-              <i
-                aria-label={`${item.label}: ${formatScore(item.value)}`}
-                style={{
-                  '--bar-percent': `${percent}%`,
-                  background: item.color ?? '#176b87'
-                } as CSSProperties}
-              />
-            </div>
-            <b>{formatScore(item.value)}</b>
-          </div>
-        );
-      })}
-    </div>
-  );
 }
 
 function Editor({

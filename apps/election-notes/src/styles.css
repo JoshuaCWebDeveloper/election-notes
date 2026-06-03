@@ -1,6 +1,4 @@
 :root {
-  --chart-report-body-height: 20.5rem;
-
   color: #1d2430;
   background: #eef1f4;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -263,7 +261,7 @@ header {
 }
 
 .panel-grid {
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
 }
 
 .report-panel,
@@ -297,26 +295,15 @@ header {
 }
 
 .candidate-chart-height-report-body {
-  height: var(--chart-report-body-height);
+  max-height: min(20.5rem, 58vh);
   overflow-x: hidden;
   overflow-y: auto;
   padding-right: 0.25rem;
 }
 
 .chart-report-body {
-  height: var(--chart-report-body-height);
-}
-
-.horizontal-chart-report-body {
-  overflow-y: hidden;
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
-}
-
-.vertical-chart-report-body {
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding-right: 0.25rem;
+  min-height: 0;
+  min-width: 0;
 }
 
 .data-entry-panel {
@@ -406,37 +393,53 @@ header {
   overflow-wrap: anywhere;
 }
 
-.bar-chart {
+.report-chart-shell {
+  min-height: 0;
+  min-width: 0;
+}
+
+.report-chart-shell--horizontal-bars {
+  max-height: min(20.5rem, 58vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.report-chart-shell--vertical-columns {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.25rem;
+}
+
+.horizontal-bar-chart {
   align-content: start;
   background-image: linear-gradient(to right, transparent 0, transparent 24%, #edf1f6 24.4%, transparent 24.8%, transparent 49%, #edf1f6 49.4%, transparent 49.8%, transparent 74%, #edf1f6 74.4%, transparent 74.8%);
   border-bottom: 1px solid #9aa8b8;
   border-left: 1px solid #9aa8b8;
   display: grid;
-  gap: 0.5rem;
-  height: 100%;
-  min-width: max(100%, 42rem);
-  overflow-y: hidden;
+  gap: 0.4rem;
+  max-width: 100%;
+  overflow-x: hidden;
   padding: 0.35rem 0 0.55rem;
-  width: max(100%, 42rem);
+  width: auto;
 }
 
-.bar-row,
+.horizontal-bar-chart__row,
 .contest-row {
   align-items: center;
   display: grid;
-  gap: 0.55rem;
+  gap: 0.35rem;
   grid-template-columns: minmax(5rem, 1fr) minmax(5rem, 2fr) 4.5rem;
 }
 
-.bar-chart .bar-row {
-  grid-template-columns: minmax(12rem, 16rem) minmax(18rem, 1fr) minmax(4rem, auto);
+.horizontal-bar-chart__row {
+  grid-template-columns: minmax(4rem, 7rem) minmax(50%, 1fr) minmax(3rem, auto);
 }
 
-.bar-chart .bar-row span {
+.horizontal-bar-chart__row span {
   text-align: right;
 }
 
-.bar-row span,
+.horizontal-bar-chart__row span,
 .contest-row span {
   color: #384456;
   min-width: 0;
@@ -445,20 +448,20 @@ header {
   white-space: nowrap;
 }
 
-.bar-row b,
+.horizontal-bar-chart__row b,
 .contest-row b {
   color: #176b87;
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  text-align: center;
 }
 
-.bar-axis {
+.horizontal-bar-chart__axis {
   align-items: center;
   display: flex;
   min-width: 0;
 }
 
-.bar-axis i {
+.horizontal-bar-chart__axis i {
   border-radius: 0 3px 3px 0;
   display: block;
   height: 1.05rem;
@@ -466,39 +469,38 @@ header {
   width: var(--bar-percent);
 }
 
-.column-chart {
+.vertical-column-chart {
   border-bottom: 1px solid #9aa8b8;
   border-left: 1px solid #9aa8b8;
-  max-width: 100%;
-  min-width: 0;
-  overflow-x: hidden;
+  min-width: max(100%, calc(var(--chart-item-count) * 4rem));
   overflow-y: visible;
   padding: 0.45rem 0.35rem 0;
-  width: 100%;
+  width: max-content;
 }
 
-.chart-plot {
+.vertical-column-chart__plot {
   align-items: end;
   background-image: linear-gradient(to top, transparent 0, transparent 24%, #edf1f6 24.4%, transparent 24.8%, transparent 49%, #edf1f6 49.4%, transparent 49.8%, transparent 74%, #edf1f6 74.4%, transparent 74.8%);
   display: grid;
-  gap: 0.55rem;
+  gap: 0.3rem;
   grid-auto-rows: 12rem;
-  grid-template-columns: repeat(auto-fit, minmax(3.5rem, 1fr));
-  min-width: 0;
+  grid-template-columns: repeat(var(--chart-item-count), minmax(3.25rem, 4rem));
+  min-width: 100%;
   width: 100%;
 }
 
-.chart-column {
+.vertical-column-chart__column {
   align-items: center;
   display: grid;
   gap: 0.35rem;
   grid-template-rows: auto minmax(8rem, 1fr) auto;
   height: 100%;
+  justify-items: center;
   min-height: 12rem;
   min-width: 0;
 }
 
-.chart-column i {
+.vertical-column-chart__column i {
   align-self: end;
   border-radius: 3px 3px 0 0;
   display: block;
@@ -507,7 +509,7 @@ header {
   width: 1.6rem;
 }
 
-.chart-column b {
+.vertical-column-chart__column b {
   color: #176b87;
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
@@ -518,7 +520,7 @@ header {
   white-space: nowrap;
 }
 
-.chart-column span {
+.vertical-column-chart__column span {
   color: #384456;
   font-size: 0.78rem;
   min-width: 0;
