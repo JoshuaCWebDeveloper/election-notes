@@ -50,3 +50,11 @@ AUTOENV_ENABLE_LEAVE=yes
 AUTOENV_ENV_FILENAME=.autoenv
 AUTOENV_ENV_LEAVE_FILENAME=.autoenv.leave
 ```
+
+## GitHub Pages
+
+The site is published from `master` by the [Publish GitHub Pages workflow](https://github.com/JoshuaCWebDeveloper/election-notes/actions/workflows/pages.yml).
+
+In **Settings → Pages**, select **GitHub Actions** as the publishing source. Once enabled, pushes to `master` automatically deploy to https://joshuacwebdeveloper.github.io/election-notes/. The workflow can also be started manually in Actions.
+
+The deployment uses the `/election-notes/` base path for both Vite assets and React Router; local development still uses `/`.
