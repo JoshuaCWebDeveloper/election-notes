@@ -1364,3 +1364,12 @@ textarea {
 .import-prompt-copy:hover { background: #f1f5f9; }
 
 .export-election-list input[type="checkbox"] { border-radius: .25rem; }
+
+.modal-actions button:disabled {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+  color: #9ca3af;
+  cursor: not-allowed;
+  opacity: .7;
+}
+.modal-actions button:disabled:hover { border-color: #d1d5db; }

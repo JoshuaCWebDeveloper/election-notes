@@ -729,7 +729,7 @@ export function App() {
               <div className="export-election-items">{db.elections.map(e => <label className={`checkbox-row export-election-row${exportIds.includes(e.id) ? ' is-selected' : ''}`} key={e.id}><input type="checkbox" checked={exportIds.includes(e.id)} onChange={event => setExportIds(previous => event.target.checked ? [...previous, e.id] : previous.filter(id => id !== e.id))} />{e.name}</label>)}</div>
             </div>
             {exportError && <p className="modal-error">{exportError}</p>}
-            <div className="modal-actions"><button type="button" onClick={() => setExportOpen(false)}>Cancel</button><button type="button" disabled={!exportIds.length} onClick={() => downloadExport(exportIds.length === db.elections.length ? null : exportIds)}>{exportIds.length ? `Export ${exportIds.length}` : 'Export'}</button></div>
+            <div className="modal-actions"><button type="button" onClick={() => setExportOpen(false)}>Cancel</button><button type="button" disabled={exportIds.length === 0} onClick={() => exportIds.length > 0 && downloadExport(exportIds.length === db.elections.length ? null : exportIds)}>{exportIds.length ? `Export ${exportIds.length}` : 'Export'}</button></div>
           </section>
         </div>
       )}
