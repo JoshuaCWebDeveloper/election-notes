@@ -10,13 +10,13 @@ const empty = (): Database => ({ candidates: [], issues: [], stances: [], facts:
 beforeEach(async () => { await replaceAllStores(empty()); });
 
 describe('import', () => {
-  it('upserts matching IDs without removing other records', async () => {
+  it('upserts matching names without removing other records', async () => {
     const original = structuredClone(seedData);
     await replaceAllStores(original);
     const patch = empty();
-    patch.elections = original.elections.slice(0, 1).map(e => ({ ...e, name: 'Imported name' }));
+    patch.elections = original.elections.slice(0, 1).map(e => ({ ...e, description: 'Updated description' }));
     const updated = await importDatabaseJson(JSON.stringify(patch));
-    expect(updated.elections.find(e => e.id === patch.elections[0].id)?.name).toBe('Imported name');
+    expect(updated.elections.find(e => e.id === patch.elections[0].id)?.description).toBe('Updated description');
     expect(updated.candidates).toEqual(original.candidates);
     expect(await loadAllStores()).toEqual(updated);
   });
@@ -37,6 +37,23 @@ describe('import', () => {
       { id: 3, name: 'Explicit ID', description: null },
       { id: 4, name: 'Another new record', description: null }
     ]);
+  });
+  it('remaps temporary IDs to existing names across relationships', async () => {
+    const existing = empty();
+    existing.elections = [{ id: 55, name: 'Same election', date: null, date_updated: null, description: null, issues: [] }];
+    existing.candidates = [{ id: 73, firstName: 'Alex', middleName: null, lastName: 'Example', score: null, confidence: null, stancesCount: null, confidenceScoreProduct: null }];
+    await replaceAllStores(existing);
+    const source = empty();
+    source.elections = [{ ...existing.elections[0], id: 1, description: 'Updated' }];
+    source.candidates = [{ ...existing.candidates[0], id: 2, score: 9 }];
+    source.contests = [{ id: 3, electionId: 1, name: 'Office', notes: null, candidateIds: [2] }];
+    const result = await importDatabaseJson(JSON.stringify(source));
+    expect(result.elections).toHaveLength(1);
+    expect(result.elections[0].id).toBe(55);
+    expect(result.elections[0].description).toBe('Updated');
+    expect(result.candidates[0].id).toBe(73);
+    expect(result.contests[0].electionId).toBe(55);
+    expect(result.contests[0].candidateIds).toEqual([73]);
   });
   it('rejects malformed JSON without altering data', async () => {
     await expect(importDatabaseJson('{broken')).rejects.toThrow('valid JSON');

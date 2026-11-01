@@ -36,9 +36,22 @@ Each array contains objects with **exactly** the fields listed below. Every list
 
 Dates are strings (prefer ISO 8601) or `null`; the validator does not require a particular date format. It also does not impose value ranges on numeric fields.
 
-## IDs and relationships
+## Names, import IDs, and relationships
 
-For new records, omit `id` to have it generated automatically. To update an existing record, provide its numeric `id`. The same numeric ID may appear in different arrays because each array is a distinct collection. Supplied IDs must be unique within their array. Generated IDs avoid collisions with existing records and IDs supplied in the file.
+Records are matched to existing records using identifying names, **not numeric IDs**. A matching record is updated; otherwise a new record is created. Case and surrounding whitespace are ignored when matching. The identity fields are:
+
+| Collection | Matching identity |
+| --- | --- |
+| `elections` | `name` |
+| `contests` | `name` within the referenced election |
+| `candidates` | Full `firstName`, `middleName`, `lastName` combination |
+| `issues` | `name` |
+| `stances` | `title` together with referenced candidate and issue |
+| `facts` | `Summary` |
+| `stanceFacts` | Referenced stance and fact pair |
+| `firstRecords` | `name` |
+
+For new records, an `id` can be omitted. When an imported record refers to another record in the same file, provide any unique numeric `id` on the referenced record and use that number in the reference. **These are temporary identifiers local to the import file**, not destination database IDs. They are translated to the matched or newly generated IDs before records are saved. An import ID never causes a destination record to be overwritten.
 
 - `contests[].electionId` references `elections[].id`.
 - `contests[].candidateIds` contains IDs from `candidates`.
@@ -46,15 +59,15 @@ For new records, omit `id` to have it generated automatically. To update an exis
 - `stances[].candidate` and `stances[].issue` reference candidates and issues.
 - `stanceFacts[].stance` and `stanceFacts[].fact` reference stances and facts.
 
-Records referenced by another record must have explicit IDs so their references can be written in the file. Only omit IDs on records that no other record in the file needs to reference (such as a standalone election or a linking record). For a self-contained import, include every referenced record and ensure all ID references agree. When imported into an existing database, a record with the same collection and ID replaces the existing record in full, so avoid accidental ID collisions.
+Use unique import IDs within each collection. Supply distinct, nonempty identifying names for reliable upserts. A record without a usable identifying name is inserted rather than matched; if multiple existing records share a matching name, the import is rejected as ambiguous.
 
 ## How to create an import file
 
-1. Identify the elections and contests to represent. Assign unique numeric IDs to records that are referenced elsewhere in the file or that should update an existing record; omit IDs for independent new records.
+1. Identify the elections and contests to represent. Assign temporary numeric IDs only to records referenced elsewhere in the file; omit IDs for independent records.
 2. Construct each record with all fields shown above; write `null` for unknown nullable values.
 3. Fill in references between records using the chosen IDs. Include supporting candidates, issues, stances, facts, and link records as needed.
 4. Assemble the eight top-level arrays. Empty collections must still be present as `[]`.
 5. Serialize as valid JSON, with double-quoted property names and strings, no comments, and no trailing commas.
-6. Verify every record's field names and types, uniqueness of supplied IDs, and consistency of references.
+6. Verify every record's field names and types, uniqueness of temporary IDs, and consistency of references.
 
 The [TypeScript data definitions](../apps/election-notes/src/types.ts) and [import validation rules](../apps/election-notes/src/services/database.ts) provide the definitive schema. The [example data](../apps/election-notes/src/seed.example.ts) contains complete sample records.
