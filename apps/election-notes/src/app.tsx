@@ -732,7 +732,7 @@ export function App() {
           <section className="modal" role="dialog" aria-modal="true" aria-labelledby="restore-title">
             <div>
               <h2 id="restore-title">Reset entire database</h2>
-              <p>WARNING: This permanently deletes ALL local data in every collection and replaces it with the selected JSON or bundled seed data. This cannot be undone. Export your data first.</p>
+              <p className="reset-warning">WARNING: This permanently deletes ALL local data in every collection and replaces it with the selected JSON or bundled seed data. This cannot be undone. Export your data first.</p>
             </div>
             <label>
               Replacement JSON file

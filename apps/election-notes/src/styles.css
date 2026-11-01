@@ -1343,3 +1343,8 @@ textarea {
 .modal textarea { min-height: 6rem; width: 100%; resize: vertical; }
 .export-election-list { display: grid; gap: .6rem; max-height: 17rem; overflow-y: auto; }
 .modal-actions { flex-wrap: wrap; }
+
+.modal p.reset-warning {
+  color: #b91c1c;
+  font-weight: 650;
+}
