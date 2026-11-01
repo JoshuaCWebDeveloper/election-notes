@@ -723,7 +723,7 @@ export function App() {
             <h2 id="export-title">Export elections</h2><p>Select elections to export with their related contests, candidates, issues, stances, facts, and links.</p>
             <div className="export-election-list">{db.elections.map(e => <label className="checkbox-row" key={e.id}><input type="checkbox" checked={exportIds.includes(e.id)} onChange={event => setExportIds(previous => event.target.checked ? [...previous, e.id] : previous.filter(id => id !== e.id))} />{e.name}</label>)}</div>
             {exportError && <p className="modal-error">{exportError}</p>}
-            <div className="modal-actions"><button onClick={() => setExportOpen(false)}>Cancel</button><button disabled={!exportIds.length} onClick={() => downloadExport(exportIds)}>Export Selected</button><button onClick={() => downloadExport(null)}>Export All</button></div>
+            <div className="modal-actions"><button type="button" onClick={() => setExportIds(exportIds.length === db.elections.length ? [] : db.elections.map(e => e.id))}>{exportIds.length === db.elections.length ? 'Unselect All' : 'Select All'}</button><button type="button" onClick={() => setExportOpen(false)}>Cancel</button><button type="button" disabled={!exportIds.length} onClick={() => downloadExport(exportIds.length === db.elections.length ? null : exportIds)}>{exportIds.length ? `Export ${exportIds.length}` : 'Export'}</button></div>
           </section>
         </div>
       )}
