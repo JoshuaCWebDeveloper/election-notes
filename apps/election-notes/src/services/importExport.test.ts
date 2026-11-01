@@ -55,6 +55,28 @@ describe('import', () => {
     expect(result.contests[0].electionId).toBe(55);
     expect(result.contests[0].candidateIds).toEqual([73]);
   });
+  it('reuses an existing stance-fact link and creates only missing pairs', async () => {
+    const db = empty();
+    db.candidates = [{ id: 20, firstName: 'Alex', middleName: null, lastName: 'Example', score: null, confidence: null, stancesCount: null, confidenceScoreProduct: null }];
+    db.issues = [{ id: 30, name: 'Roads', description: null }];
+    db.stances = [{ id: 40, date_created: null, date_updated: null, title: 'Support', candidate: 20, issue: 30, rating: null, confidence: null, description: null }];
+    db.facts = [
+      { id: 50, date_created: null, date_updated: null, Summary: 'Existing fact', description: null },
+      { id: 51, date_created: null, date_updated: null, Summary: 'Another fact', description: null }
+    ];
+    db.stanceFacts = [{ id: 60, stance: 40, fact: 50 }];
+    await replaceAllStores(db);
+    const batch = empty();
+    batch.candidates = [{ ...db.candidates[0], id: 1 }];
+    batch.issues = [{ ...db.issues[0], id: 2 }];
+    batch.stances = [{ ...db.stances[0], id: 3, candidate: 1, issue: 2 }];
+    batch.facts = [{ ...db.facts[0], id: 4 }, { ...db.facts[1], id: 5 }];
+    batch.stanceFacts = [{ id: 6, stance: 3, fact: 4 }, { id: 7, stance: 3, fact: 5 }];
+    const result = await importDatabaseJson(JSON.stringify(batch));
+    expect(result.stanceFacts).toHaveLength(2);
+    expect(result.stanceFacts).toContainEqual({ id: 60, stance: 40, fact: 50 });
+    expect(result.stanceFacts).toContainEqual({ id: 1, stance: 40, fact: 51 });
+  });
   it('rejects malformed JSON without altering data', async () => {
     await expect(importDatabaseJson('{broken')).rejects.toThrow('valid JSON');
     expect(await loadAllStores()).toEqual(empty());

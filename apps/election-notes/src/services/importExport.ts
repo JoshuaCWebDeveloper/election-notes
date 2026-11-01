@@ -123,6 +123,9 @@ export async function importDatabaseJson(json: string): Promise<Database> {
       if (store === 'elections') electionIssueRows.set(destinationId, row.issues as Array<{issueId: number; points: number}>);
       row.id = destinationId;
       if (originalId !== undefined) idMaps[store].set(originalId, destinationId);
+      // A stance/fact link is identified by its pair, not by its source ID.
+      // Keep an existing link unchanged rather than replacing it.
+      if (store === 'stanceFacts' && matches.length) continue;
       const existingIndex = existingRows.findIndex(item => item.id === destinationId);
       if (existingIndex >= 0) existingRows[existingIndex] = row as {id: number};
       else existingRows.push(row as {id: number});
