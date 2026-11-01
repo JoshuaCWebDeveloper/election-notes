@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Election Notes - Redirecting</title>
+    <script>
+      // GitHub Pages serves this page for unknown paths, including SPA routes.
+      const requested = location.pathname + location.search + location.hash;
+      if (location.pathname.startsWith('/election-notes/')) {
+        location.replace('/election-notes/?route=' + encodeURIComponent(requested));
+      }
+    </script>
+  </head>
+  <body><p>Redirecting to Election Notes...</p></body>
+</html>

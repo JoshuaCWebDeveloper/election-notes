@@ -6,6 +6,13 @@
     <title>Election Notes</title>
   </head>
   <body>
+    <script>
+      // Restore a client-side route after GitHub Pages redirects a deep link to the SPA.
+      const redirect = new URLSearchParams(location.search).get('route');
+      if (redirect && redirect.startsWith('/election-notes/') && !redirect.startsWith('//')) {
+        history.replaceState(null, '', redirect);
+      }
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
