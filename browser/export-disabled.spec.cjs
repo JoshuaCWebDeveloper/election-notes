@@ -67,6 +67,17 @@ test('elections sort by election date and candidate screen shows contest members
 test('merge candidate preview and commit preserve membership', async ({ page }, testInfo) => {
   await page.goto('https://joshuacwebdeveloper.github.io/election-notes/');
   await page.getByRole('button', { name: /^Candidates/ }).first().click();
+  const listRows = page.locator('.merge-candidate-list-row');
+  await expect(listRows).toHaveCount(2);
+  const listGeometry = await listRows.first().evaluate(row => {
+    const container = row.getBoundingClientRect();
+    const button = row.querySelector('button').getBoundingClientRect();
+    return { containerWidth: container.width, buttonWidth: button.width, buttonHeight: button.height };
+  });
+  console.log('CANDIDATE LIST GEOMETRY', JSON.stringify(listGeometry));
+  expect(listGeometry.buttonWidth).toBeGreaterThan(130);
+  expect(listGeometry.buttonHeight).toBeGreaterThan(35);
+  await page.screenshot({ path: testInfo.outputPath('candidate-list-before-merge.png'), fullPage: true });
   const merge = page.getByRole('button', { name: /Merge candidates/ });
   await expect(merge).toBeDisabled();
   const boxes = page.locator('.merge-candidate-list-row > input[type=checkbox]');

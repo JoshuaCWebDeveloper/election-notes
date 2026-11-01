@@ -1452,3 +1452,7 @@ textarea {
 .merge-preview h3, .merge-preview p { margin: .35rem 0; }
 .merge-preview ul { margin: .35rem 0; padding-left: 1.35rem; }
 .merge-choices { display: grid; gap: .5rem; }
+/* Candidate merge controls must preserve the original full-width list cards. */
+.list .merge-candidate-list-row { display: grid; grid-template-columns: 1.4rem minmax(0, 1fr); align-items: center; width: 100%; min-width: 0; }
+.list .merge-candidate-list-row > button { display: grid; width: 100%; min-width: 0; justify-self: stretch; }
+.list .merge-candidate-list-row > input[type="checkbox"] { width: 1.1rem; height: 1.1rem; min-height: 1.1rem; margin: 0; }
