@@ -1,8 +1,9 @@
+import { exportElectionJson, importDatabaseJson } from './services/importExport';
 import { ChevronDown, ChevronRight, Copy, Download, Menu, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getReportChartLayout, ReportChart } from './components/reportChart';
-import { canRestoreSeedData, createBackupJson, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
+import { canRestoreSeedData, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
 import { candidateFromInlineName, contestFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
 import { averageIssueConfidence, countIssueStances, countStanceFacts, getAvailableFactsForStance, getCandidateContestRows, getElectionCandidateCount, getElectionContestCount, getElectionContests, getReportPanelData, reportDashboards, type ReportDatum, type ReportPanel } from './services/reports';
 import type { Candidate, Contest, Database, Election, ElectionIssue, Fact, First, Id, Issue, Stance, StanceFact } from './types';
@@ -396,6 +397,17 @@ export function App() {
   const visibleRows = useMemo(() => db ? sortRowsForTab(rows, active.key, db) : rows, [active.key, db, rows]);
   const selectedId = route.selectedId ?? (active.key === 'elections' ? null : visibleRows[0]?.id ?? null);
   const [restoreOpen, setRestoreOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [importJson, setImportJson] = useState('');
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPromptOpen, setImportPromptOpen] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [exportIds, setExportIds] = useState<Id[]>([]);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [resetJson, setResetJson] = useState('');
+  const [resetConfirmed, setResetConfirmed] = useState(false);
   const [electionMenuOpen, setElectionMenuOpen] = useState(false);
   const [restoreUseSeed, setRestoreUseSeed] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
@@ -606,30 +618,51 @@ export function App() {
     navigateToSelection(active.key, active.key === 'elections' ? null : nextRows[0]?.id ?? null, { replace: true });
   }
 
-  async function backup() {
-    const json = await createBackupJson();
+  async function downloadExport(ids: Id[] | null) {
+    try {
+      setExportError(null);
+      const json = await exportElectionJson(ids);
     const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
     const link = document.createElement('a');
     link.href = url;
-    link.download = `election-notes-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `election-notes-export-${new Date().toISOString().slice(0, 10)}.json`;
     link.click();
     URL.revokeObjectURL(url);
+    setExportOpen(false);
+    } catch (error) { setExportError(error instanceof Error ? error.message : 'Export failed.'); }
+  }
+
+  async function importRecords() {
+    setImportError(null);
+    try {
+      setImportBusy(true);
+      if (!importJson.trim() && !importFile) throw new Error('Paste JSON or choose a JSON file.');
+      const data = await importDatabaseJson(importFile ? await importFile.text() : importJson);
+      setDb(data);
+      setImportOpen(false);
+      setImportJson('');
+      setImportFile(null);
+    } catch (error) { setImportError(error instanceof Error ? error.message : 'Import failed.'); }
+    finally { setImportBusy(false); }
   }
 
   async function restore() {
     setRestoreError(null);
-    if (!restoreUseSeed && !restoreFile) {
-      setRestoreError('Choose a JSON backup file or use the bundled seed data.');
+    if (!resetConfirmed) { setRestoreError('Confirm permanent deletion before resetting.'); return; }
+    if (!restoreUseSeed && !restoreFile && !resetJson.trim()) {
+      setRestoreError('Choose a JSON file, paste JSON, or use the bundled seed data.');
       return;
     }
 
     try {
       setRestoreBusy(true);
-      const data = restoreUseSeed ? await restoreDatabaseFromSeed() : await restoreDatabaseFromJson(await restoreFile!.text());
+      const data = restoreUseSeed ? await restoreDatabaseFromSeed() : await restoreDatabaseFromJson(restoreFile ? await restoreFile.text() : resetJson);
       setDb(data);
       navigateToSelection(active.key, active.key === 'elections' ? null : sortRowsForTab(data[active.key], active.key, data)[0]?.id ?? null, { replace: true });
       setRestoreOpen(false);
       setRestoreUseSeed(false);
+      setResetConfirmed(false);
+      setResetJson('');
       setRestoreFile(null);
     } catch (error) {
       setRestoreError(error instanceof Error ? error.message : 'Restore failed.');
@@ -666,18 +699,43 @@ export function App() {
             </button>
           ))}
         </nav>
-        <button className="backup" onClick={backup}><Download size={16} /> Backup</button>
-        <button className="restore" onClick={() => { setRestoreOpen(true); setRestoreError(null); }}><RotateCcw size={16} /> Restore</button>
+        <button className="backup" onClick={() => { setImportOpen(true); setImportError(null); }}><Upload size={16} /> Import</button>
+        <button onClick={() => { setExportOpen(true); setExportError(null); }}><Download size={16} /> Export</button>
+        <button className="restore" onClick={() => { setRestoreOpen(true); setRestoreError(null); }}><RotateCcw size={16} /> Reset</button>
       </aside>
+      {importOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="import-title">
+            <h2 id="import-title">Import records</h2>
+            <p>Add or update records by ID. Existing records not present in the import are preserved.</p>
+            <label>Paste JSON<textarea rows={5} value={importJson} onChange={e => { setImportJson(e.target.value); setImportFile(null); }} /></label>
+            <label>Or upload JSON<input type="file" accept=".json,application/json" onChange={e => { setImportFile(e.target.files?.[0] ?? null); setImportJson(''); }} /></label>
+            <button type="button" onClick={() => setImportPromptOpen(!importPromptOpen)}>Prompt AI to Generate an Import</button>
+            {importPromptOpen && <div><p>Copy the instructions below into your AI agent:</p><textarea rows={5} readOnly value={'Generate a valid Election Notes import JSON file. Follow the public schema and instructions at https://github.com/JoshuaCWebDeveloper/election-notes/blob/master/docs/import-format.md . Return only the JSON object with all eight required collection keys. Use stable numeric IDs and include the related records.'} /><button type="button" onClick={() => navigator.clipboard.writeText('Generate a valid Election Notes import JSON file following https://github.com/JoshuaCWebDeveloper/election-notes/blob/master/docs/import-format.md . Return only JSON with all eight collections and stable numeric IDs.')}>Copy prompt</button></div>}
+            {importError && <p className="modal-error">{importError}</p>}
+            <div className="modal-actions"><button onClick={() => setImportOpen(false)} disabled={importBusy}>Cancel</button><button onClick={importRecords} disabled={importBusy}>{importBusy ? 'Importing...' : 'Import records'}</button></div>
+          </section>
+        </div>
+      )}
+      {exportOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="export-title">
+            <h2 id="export-title">Export elections</h2><p>Select elections to export with their related contests, candidates, issues, stances, facts, and links.</p>
+            <div className="export-election-list">{db.elections.map(e => <label className="checkbox-row" key={e.id}><input type="checkbox" checked={exportIds.includes(e.id)} onChange={event => setExportIds(previous => event.target.checked ? [...previous, e.id] : previous.filter(id => id !== e.id))} />{e.name}</label>)}</div>
+            {exportError && <p className="modal-error">{exportError}</p>}
+            <div className="modal-actions"><button onClick={() => setExportOpen(false)}>Cancel</button><button disabled={!exportIds.length} onClick={() => downloadExport(exportIds)}>Export Selected</button><button onClick={() => downloadExport(null)}>Export All</button></div>
+          </section>
+        </div>
+      )}
       {restoreOpen && (
         <div className="modal-backdrop" role="presentation">
           <section className="modal" role="dialog" aria-modal="true" aria-labelledby="restore-title">
             <div>
-              <h2 id="restore-title">Restore database</h2>
-              <p>Replace every local store from a full JSON backup.</p>
+              <h2 id="restore-title">Reset entire database</h2>
+              <p>WARNING: This permanently deletes ALL local data in every collection and replaces it with the selected JSON or bundled seed data. This cannot be undone. Export your data first.</p>
             </div>
             <label>
-              JSON backup file
+              Replacement JSON file
               <input
                 type="file"
                 accept="application/json,.json"
@@ -687,6 +745,9 @@ export function App() {
                   setRestoreError(null);
                 }}
               />
+            </label>
+            <label>Or paste replacement JSON
+              <textarea rows={4} value={resetJson} disabled={restoreUseSeed} onChange={event => { setResetJson(event.target.value); setRestoreError(null); }} />
             </label>
             {seedRestoreAvailable && (
               <label className="checkbox-row">
@@ -701,11 +762,12 @@ export function App() {
                 Use bundled seedData file
               </label>
             )}
+            <label className="checkbox-row"><input type="checkbox" checked={resetConfirmed} onChange={e => setResetConfirmed(e.target.checked)} />I understand that resetting permanently deletes and replaces all existing data.</label>
             {restoreError && <p className="modal-error">{restoreError}</p>}
             <div className="modal-actions">
               <button type="button" onClick={() => { setRestoreOpen(false); setRestoreError(null); }} disabled={restoreBusy}>Cancel</button>
-              <button type="button" className="danger" onClick={restore} disabled={restoreBusy}>
-                <Upload size={16} /> {restoreBusy ? 'Restoring...' : 'Restore'}
+              <button type="button" className="danger" onClick={restore} disabled={restoreBusy || !resetConfirmed}>
+                <Upload size={16} /> {restoreBusy ? 'Resetting...' : 'Delete all data and reset'}
               </button>
             </div>
           </section>

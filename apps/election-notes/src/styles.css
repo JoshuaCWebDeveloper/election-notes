@@ -1338,3 +1338,8 @@ textarea {
     justify-self: end;
   }
 }
+
+.modal { max-height: min(90vh, 56rem); overflow-y: auto; }
+.modal textarea { min-height: 6rem; width: 100%; resize: vertical; }
+.export-election-list { display: grid; gap: .6rem; max-height: 17rem; overflow-y: auto; }
+.modal-actions { flex-wrap: wrap; }
