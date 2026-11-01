@@ -1445,3 +1445,10 @@ textarea {
 .candidate-election-membership { border-bottom: 1px solid #e2e8f0; padding: .5rem 0; }
 .candidate-election-membership:last-child { border-bottom: 0; }
 .candidate-election-memberships p { margin: 0; color: #667487; }
+.merge-candidate-list-row { display: flex; align-items: stretch; gap: .45rem; }
+.merge-candidate-list-row > input { flex: 0 0 auto; align-self: center; accent-color: #16803d; }
+.merge-candidate-list-row > button { flex: 1; min-width: 0; }
+.merge-preview { border: 1px solid #d8dee6; border-radius: 8px; padding: .8rem; max-height: 17rem; overflow-y: auto; }
+.merge-preview h3, .merge-preview p { margin: .35rem 0; }
+.merge-preview ul { margin: .35rem 0; padding-left: 1.35rem; }
+.merge-choices { display: grid; gap: .5rem; }

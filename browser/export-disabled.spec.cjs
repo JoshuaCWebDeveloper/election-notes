@@ -63,3 +63,23 @@ test('elections sort by election date and candidate screen shows contest members
   await expect(page.locator('.candidate-election-membership').first()).toContainText('Example Local Election contest');
   await page.screenshot({ path: testInfo.outputPath('candidate-memberships.png'), fullPage: true });
 });
+
+test('merge candidate preview and commit preserve membership', async ({ page }, testInfo) => {
+  await page.goto('https://joshuacwebdeveloper.github.io/election-notes/');
+  await page.getByRole('button', { name: /^Candidates/ }).first().click();
+  const merge = page.getByRole('button', { name: /Merge candidates/ });
+  await expect(merge).toBeDisabled();
+  const boxes = page.locator('.merge-candidate-list-row > input[type=checkbox]');
+  await boxes.nth(0).check();
+  await boxes.nth(1).check();
+  await expect(merge).toBeEnabled();
+  await merge.click();
+  const dialog = page.getByRole('dialog', { name: 'Merge duplicate candidates' });
+  await expect(dialog.getByText('Resulting name:')).toBeVisible();
+  await expect(dialog.getByText(/Example Local Election contest/)).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('candidate-merge-preview.png'), fullPage: true });
+  await dialog.getByRole('button', { name: 'Merge candidates' }).click();
+  await expect(page.locator('.merge-candidate-list-row')).toHaveCount(1);
+  await expect(page.locator('.candidate-election-membership').first()).toContainText('Example Local Election contest');
+  await page.screenshot({ path: testInfo.outputPath('candidate-merge-result.png'), fullPage: true });
+});

@@ -1,3 +1,4 @@
+import { mergeCandidates, previewCandidateMerge } from './services/mergeCandidates';
 import { exportElectionJson, importDatabaseJson } from './services/importExport';
 import { ChevronDown, ChevronRight, Copy, Download, Menu, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
@@ -405,6 +406,11 @@ export function App() {
   const [importError, setImportError] = useState<string | null>(null);
   const [importBusy, setImportBusy] = useState(false);
   const [exportIds, setExportIds] = useState<Id[]>([]);
+  const [mergeIds, setMergeIds] = useState<Id[]>([]);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeKeepId, setMergeKeepId] = useState<Id | null>(null);
+  const [mergeError, setMergeError] = useState<string | null>(null);
+  const [mergeBusy, setMergeBusy] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [resetJson, setResetJson] = useState('');
   const [resetConfirmed, setResetConfirmed] = useState(false);
@@ -717,6 +723,31 @@ export function App() {
           </section>
         </div>
       )}
+      {mergeOpen && mergeIds.length === 2 && mergeKeepId !== null && (
+        <div className="modal-backdrop" role="presentation">
+          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="merge-title">
+            <h2 id="merge-title">Merge duplicate candidates</h2>
+            <p>Choose which candidate record and name to keep. The other candidate will be deleted, and its election memberships and stances will move to the retained candidate.</p>
+            <fieldset className="merge-choices"><legend>Keep candidate</legend>
+              {mergeIds.map(id => { const candidate = db.candidates.find(candidate => candidate.id === id)!; return <label key={id} className="checkbox-row"><input type="radio" name="mergeKeep" checked={mergeKeepId === id} onChange={() => setMergeKeepId(id)} />{candidateName(candidate)}</label>; })}
+            </fieldset>
+            {(() => { const preview = previewCandidateMerge(db, mergeKeepId, mergeIds.find(id => id !== mergeKeepId)!); return <div className="merge-preview">
+              <h3>Merge preview</h3><p><strong>Resulting name:</strong> {candidateName(preview.keep)}</p>
+              <p><strong>Elections and contests ({preview.elections.length}):</strong></p>
+              {preview.elections.length ? <ul>{preview.elections.map(({ contest, election }) => <li key={contest.id}>{election.name} – {contest.name}</li>)}</ul> : <p>No elections.</p>}
+              <p><strong>Stances:</strong> {db.stances.filter(stance => mergeIds.includes(stance.candidate ?? -1)).length} retained</p>
+            </div>; })()}
+            {mergeError && <p className="modal-error">{mergeError}</p>}
+            <div className="modal-actions"><button type="button" disabled={mergeBusy} onClick={() => setMergeOpen(false)}>Cancel</button><button type="button" disabled={mergeBusy} onClick={async () => {
+              if (mergeKeepId === null) return;
+              setMergeBusy(true); setMergeError(null);
+              try { const next = await mergeCandidates(db, mergeKeepId, mergeIds.find(id => id !== mergeKeepId)!); setDb(next); setMergeOpen(false); setMergeIds([]); navigateToSelection('candidates', mergeKeepId); }
+              catch (error) { setMergeError(error instanceof Error ? error.message : 'Merge failed.'); }
+              finally { setMergeBusy(false); }
+            }}>{mergeBusy ? 'Merging...' : 'Merge candidates'}</button></div>
+          </section>
+        </div>
+      )}
       {exportOpen && (
         <div className="modal-backdrop" role="presentation">
           <section className="modal" role="dialog" aria-modal="true" aria-labelledby="export-title">
@@ -881,13 +912,16 @@ export function App() {
                 <p>Create, edit, delete, and connect SQL-derived records.</p>
               </div>
               <div className="header-actions">
+                {active.key === 'candidates' && <button type="button" disabled={mergeIds.length !== 2} onClick={() => { setMergeKeepId(mergeIds[0]); setMergeError(null); setMergeOpen(true); }}>Merge candidates ({mergeIds.length}/2)</button>}
                 <button onClick={() => { const row = active.blank(db); void save(row); }}><Plus size={16} /> New</button>
               </div>
             </header>
             <div className="content">
               <div className="list">
                 {visibleRows.map((row) => (
-                  <button className={row.id === selected.id ? 'selected' : ''} key={row.id} onClick={() => navigateToSelection(active.key, row.id)}>
+                  <div className="merge-candidate-list-row" key={row.id}>
+                  {active.key === 'candidates' && <input type="checkbox" aria-label={`Select ${candidateName(row as Candidate)} for merge`} checked={mergeIds.includes(row.id)} disabled={!mergeIds.includes(row.id) && mergeIds.length >= 2} onChange={e => setMergeIds(previous => e.target.checked ? [...previous, row.id] : previous.filter(id => id !== row.id))} />}
+                  <button className={row.id === selected.id ? 'selected' : ''} onClick={() => navigateToSelection(active.key, row.id)}>
                     <strong>{rowTitle(active.key, row, db)}</strong>
                     {active.key === 'issues' ? (
                       <>
@@ -898,6 +932,7 @@ export function App() {
                       <span>{active.summary(row as never, db)}</span>
                     )}
                   </button>
+                  </div>
                 ))}
               </div>
               <Editor
