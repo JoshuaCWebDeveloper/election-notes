@@ -726,7 +726,7 @@ export function App() {
                 <input type="checkbox" checked={db.elections.length > 0 && exportIds.length === db.elections.length} disabled={!db.elections.length} onChange={event => setExportIds(event.target.checked ? db.elections.map(e => e.id) : [])} />
                 {exportIds.length === db.elections.length && db.elections.length > 0 ? 'Unselect All' : 'Select All'}
               </label>
-              <div className="export-election-items">{db.elections.map(e => <label className="checkbox-row" key={e.id}><input type="checkbox" checked={exportIds.includes(e.id)} onChange={event => setExportIds(previous => event.target.checked ? [...previous, e.id] : previous.filter(id => id !== e.id))} />{e.name}</label>)}</div>
+              <div className="export-election-items">{db.elections.map(e => <label className={`checkbox-row export-election-row${exportIds.includes(e.id) ? ' is-selected' : ''}`} key={e.id}><input type="checkbox" checked={exportIds.includes(e.id)} onChange={event => setExportIds(previous => event.target.checked ? [...previous, e.id] : previous.filter(id => id !== e.id))} />{e.name}</label>)}</div>
             </div>
             {exportError && <p className="modal-error">{exportError}</p>}
             <div className="modal-actions"><button type="button" onClick={() => setExportOpen(false)}>Cancel</button><button type="button" disabled={!exportIds.length} onClick={() => downloadExport(exportIds.length === db.elections.length ? null : exportIds)}>{exportIds.length ? `Export ${exportIds.length}` : 'Export'}</button></div>
