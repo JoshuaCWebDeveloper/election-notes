@@ -1,5 +1,5 @@
 import { exportElectionJson, importDatabaseJson } from './services/importExport';
-import { Check, ChevronDown, ChevronRight, Copy, Download, Menu, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy, Download, Menu, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getReportChartLayout, ReportChart } from './components/reportChart';
@@ -1104,13 +1104,13 @@ function ElectionScoringReport({
               const isExpandedCandidate = isExpandedContest && expandedCandidateId === score.candidate.id;
               return (
                 <div key={score.candidate.id} className={`score-selection-row${selectedIds.includes(score.candidate.id) ? ' candidate-chosen' : ''}${isExpandedCandidate ? ' expanded' : ''}`}>
+                {!selectionMode && selectedIds.includes(score.candidate.id) && <input type="checkbox" checked disabled aria-label={`${candidateName(score.candidate)} selected`} className="selection-indicator" />}
                 {selectionMode && <input type="checkbox" aria-label={`Select ${candidateName(score.candidate)} in election data`} checked={selectedIds.includes(score.candidate.id)} onChange={(event) => { updateSelection(event.target.checked ? [...selectedIds, score.candidate.id] : selectedIds.filter(id => id !== score.candidate.id)); if (event.target.checked) setSelectionMode(false); }} />}
                 <button
                   className={`${isExpandedCandidate ? 'score-card expanded' : 'score-card'}${selectedIds.includes(score.candidate.id) ? ' candidate-chosen' : ''}`}
                   type="button"
                   onClick={() => onExpansionChange(contestScore.contest?.id ?? null, isExpandedCandidate ? null : score.candidate.id)}
                 >
-                  {!selectionMode && selectedIds.includes(score.candidate.id) && <Check size={16} aria-label="Selected" />}
                   {isExpandedCandidate ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   <span>
                     <strong>{candidateName(score.candidate)}</strong>
@@ -1979,8 +1979,8 @@ function ContestEditor({
               void onSaveContest({ ...contest, selectedCandidateIds: event.target.checked ? [...selectedIds, candidate.id] : selectedIds.filter(id => id !== candidate.id) });
               if (event.target.checked) setSelectionMode(false);
             }} />}
+            {!selectionMode && (contest.selectedCandidateIds ?? []).includes(candidate.id) && <input type="checkbox" checked disabled aria-label={`${candidateName(candidate)} selected`} className="selection-indicator" />}
             <span>{candidateName(candidate)}</span>
-            {!selectionMode && (contest.selectedCandidateIds ?? []).includes(candidate.id) && <Check size={16} aria-label="Selected" />}
             <button type="button" aria-label={`Remove ${candidateName(candidate)}`} onClick={() => updateContest({ ...draft, candidateIds: draft.candidateIds.filter((id) => id !== candidate.id), selectedCandidateIds: (contest.selectedCandidateIds ?? []).filter(id => id !== candidate.id) })}><X size={16} /></button>
           </div>
         ))}
