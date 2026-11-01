@@ -1106,13 +1106,13 @@ function ElectionScoringReport({
               const isExpandedCandidate = isExpandedContest && expandedCandidateId === score.candidate.id;
               return (
                 <div key={score.candidate.id} className={`score-selection-row${selectedIds.includes(score.candidate.id) ? ' candidate-chosen' : ''}${isExpandedCandidate ? ' expanded' : ''}`}>
-                {selectionMode && <input type="checkbox" aria-label={`Select ${candidateName(score.candidate)} in election data`} checked={selectedIds.includes(score.candidate.id)} onChange={(event) => updateSelection(event.target.checked ? [...selectedIds, score.candidate.id] : selectedIds.filter(id => id !== score.candidate.id))} />}
+                {selectionMode && <input type="checkbox" aria-label={`Select ${candidateName(score.candidate)} in election data`} checked={selectedIds.includes(score.candidate.id)} onChange={(event) => { updateSelection(event.target.checked ? [...selectedIds, score.candidate.id] : selectedIds.filter(id => id !== score.candidate.id)); if (event.target.checked) setSelectionMode(false); }} />}
                 <button
                   className={`${isExpandedCandidate ? 'score-card expanded' : 'score-card'}${selectedIds.includes(score.candidate.id) ? ' candidate-chosen' : ''}`}
                   type="button"
                   onClick={() => onExpansionChange(contestScore.contest?.id ?? null, isExpandedCandidate ? null : score.candidate.id)}
                 >
-                  {selectedIds.includes(score.candidate.id) && <Check size={16} aria-label="Selected" />}
+                  {!selectionMode && selectedIds.includes(score.candidate.id) && <Check size={16} aria-label="Selected" />}
                   {isExpandedCandidate ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   <span>
                     <strong>{candidateName(score.candidate)}</strong>
@@ -1974,9 +1974,9 @@ function ContestEditor({
         {included.length === 0 && <p>No candidates selected.</p>}
         {included.map((candidate) => (
           <div className={`included-row${(draft.selectedCandidateIds ?? []).includes(candidate.id) ? ' candidate-chosen' : ''}`} key={candidate.id}>
-            {selectionMode && <input type="checkbox" aria-label={`Select ${candidateName(candidate)}`} checked={(draft.selectedCandidateIds ?? []).includes(candidate.id)} onChange={(event) => updateContest({ ...draft, selectedCandidateIds: event.target.checked ? [...(draft.selectedCandidateIds ?? []), candidate.id] : (draft.selectedCandidateIds ?? []).filter(id => id !== candidate.id) })} />}
+            {selectionMode && <input type="checkbox" aria-label={`Select ${candidateName(candidate)}`} checked={(draft.selectedCandidateIds ?? []).includes(candidate.id)} onChange={(event) => { updateContest({ ...draft, selectedCandidateIds: event.target.checked ? [...(draft.selectedCandidateIds ?? []), candidate.id] : (draft.selectedCandidateIds ?? []).filter(id => id !== candidate.id) }); if (event.target.checked) setSelectionMode(false); }} />}
             <span>{candidateName(candidate)}</span>
-            {(draft.selectedCandidateIds ?? []).includes(candidate.id) && <Check size={16} aria-label="Selected" />}
+            {!selectionMode && (draft.selectedCandidateIds ?? []).includes(candidate.id) && <Check size={16} aria-label="Selected" />}
             <button type="button" aria-label={`Remove ${candidateName(candidate)}`} onClick={() => updateContest({ ...draft, candidateIds: draft.candidateIds.filter((id) => id !== candidate.id), selectedCandidateIds: (draft.selectedCandidateIds ?? []).filter(id => id !== candidate.id) })}><X size={16} /></button>
           </div>
         ))}
