@@ -1083,11 +1083,9 @@ function ElectionScoringReport({
 }) {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectionSnapshot, setSelectionSnapshot] = useState<Id[]>([]);
-  const [selectionDraft, setSelectionDraft] = useState<Id[]>([]);
   const contest = contestScore.contest;
-  const selectedIds = selectionMode ? selectionDraft : (contest?.selectedCandidateIds ?? []);
+  const selectedIds = contest?.selectedCandidateIds ?? [];
   const updateSelection = (ids: Id[]) => {
-    setSelectionDraft(ids);
     if (contest) void onSaveEntity('contests', { ...contest, selectedCandidateIds: ids }, election.id);
   };
   const isExpandedContest = expandedContestId === contestScore.contest?.id;
@@ -1098,7 +1096,7 @@ function ElectionScoringReport({
         <div className="score-contest">
           {contest && <div className="score-selection-actions"><button type="button" onClick={() => {
             if (selectionMode) { updateSelection(selectionSnapshot); setSelectionMode(false); }
-            else { setSelectionSnapshot([...selectedIds]); setSelectionDraft([...selectedIds]); setSelectionMode(true); }
+            else { setSelectionSnapshot([...selectedIds]); setSelectionMode(true); }
           }}>{selectionMode ? 'Cancel' : 'Make Selection'}</button></div>}
           {contestScore.candidates.length === 0 && <p>No candidates selected.</p>}
           <div className="score-grid">
@@ -1928,7 +1926,9 @@ function ContestEditor({
     setSelectionMode(false);
   }, [contest.id]);
 
-  const autoSave = useDebouncedAutoSave(draft, onSaveContest, autoSaveDelayMs, draftRevision);
+  // Only form fields are draft state. Selection is always read from the
+  // shared contest record, and saves of form fields preserve its current value.
+  const autoSave = useDebouncedAutoSave(draft, (next) => onSaveContest({ ...next, selectedCandidateIds: contest.selectedCandidateIds ?? [] }), autoSaveDelayMs, draftRevision);
 
   function updateContest(nextContest: Contest) {
     setDraft(nextContest);
@@ -1951,8 +1951,8 @@ function ContestEditor({
           onChange={(event) => updateContest({ ...draft, name: event.target.value })}
         />
         <button type="button" className="contest-selection-trigger" onClick={() => {
-          if (selectionMode) { updateContest({ ...draft, selectedCandidateIds: selectionSnapshot }); setSelectionMode(false); }
-          else { setSelectionSnapshot([...(draft.selectedCandidateIds ?? [])]); setSelectionMode(true); }
+          if (selectionMode) { void onSaveContest({ ...contest, selectedCandidateIds: selectionSnapshot }); setSelectionMode(false); }
+          else { setSelectionSnapshot([...(contest.selectedCandidateIds ?? [])]); setSelectionMode(true); }
         }}>{selectionMode ? 'Cancel' : 'Make Selection'}</button>
         {!showNotes && (
           <button type="button" className="contest-note-trigger" onClick={() => setIsEditingNotes(true)}>Add note</button>
@@ -1973,11 +1973,15 @@ function ContestEditor({
       <div className="included-list">
         {included.length === 0 && <p>No candidates selected.</p>}
         {included.map((candidate) => (
-          <div className={`included-row${(draft.selectedCandidateIds ?? []).includes(candidate.id) ? ' candidate-chosen' : ''}`} key={candidate.id}>
-            {selectionMode && <input type="checkbox" aria-label={`Select ${candidateName(candidate)}`} checked={(draft.selectedCandidateIds ?? []).includes(candidate.id)} onChange={(event) => { updateContest({ ...draft, selectedCandidateIds: event.target.checked ? [...(draft.selectedCandidateIds ?? []), candidate.id] : (draft.selectedCandidateIds ?? []).filter(id => id !== candidate.id) }); if (event.target.checked) setSelectionMode(false); }} />}
+          <div className={`included-row${(contest.selectedCandidateIds ?? []).includes(candidate.id) ? ' candidate-chosen' : ''}`} key={candidate.id}>
+            {selectionMode && <input type="checkbox" aria-label={`Select ${candidateName(candidate)}`} checked={(contest.selectedCandidateIds ?? []).includes(candidate.id)} onChange={(event) => {
+              const selectedIds = contest.selectedCandidateIds ?? [];
+              void onSaveContest({ ...contest, selectedCandidateIds: event.target.checked ? [...selectedIds, candidate.id] : selectedIds.filter(id => id !== candidate.id) });
+              if (event.target.checked) setSelectionMode(false);
+            }} />}
             <span>{candidateName(candidate)}</span>
-            {!selectionMode && (draft.selectedCandidateIds ?? []).includes(candidate.id) && <Check size={16} aria-label="Selected" />}
-            <button type="button" aria-label={`Remove ${candidateName(candidate)}`} onClick={() => updateContest({ ...draft, candidateIds: draft.candidateIds.filter((id) => id !== candidate.id), selectedCandidateIds: (draft.selectedCandidateIds ?? []).filter(id => id !== candidate.id) })}><X size={16} /></button>
+            {!selectionMode && (contest.selectedCandidateIds ?? []).includes(candidate.id) && <Check size={16} aria-label="Selected" />}
+            <button type="button" aria-label={`Remove ${candidateName(candidate)}`} onClick={() => updateContest({ ...draft, candidateIds: draft.candidateIds.filter((id) => id !== candidate.id), selectedCandidateIds: (contest.selectedCandidateIds ?? []).filter(id => id !== candidate.id) })}><X size={16} /></button>
           </div>
         ))}
       </div>
