@@ -20,6 +20,24 @@ describe('import', () => {
     expect(updated.candidates).toEqual(original.candidates);
     expect(await loadAllStores()).toEqual(updated);
   });
+  it('generates collision-free IDs when new records omit id', async () => {
+    const original = empty();
+    original.issues = [{ id: 1, name: 'Existing', description: null }];
+    await replaceAllStores(original);
+    const batch = empty() as Record<string, unknown>;
+    batch.issues = [
+      { name: 'New without ID', description: null },
+      { id: 3, name: 'Explicit ID', description: null },
+      { name: 'Another new record', description: null }
+    ];
+    const imported = await importDatabaseJson(JSON.stringify(batch));
+    expect(imported.issues).toEqual([
+      { id: 1, name: 'Existing', description: null },
+      { id: 2, name: 'New without ID', description: null },
+      { id: 3, name: 'Explicit ID', description: null },
+      { id: 4, name: 'Another new record', description: null }
+    ]);
+  });
   it('rejects malformed JSON without altering data', async () => {
     await expect(importDatabaseJson('{broken')).rejects.toThrow('valid JSON');
     expect(await loadAllStores()).toEqual(empty());

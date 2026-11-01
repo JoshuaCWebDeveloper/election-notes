@@ -33,6 +33,28 @@ export async function exportElectionJson(ids: Id[] | null): Promise<string> {
 export async function importDatabaseJson(json: string): Promise<Database> {
   let parsed: unknown;
   try { parsed = JSON.parse(json); } catch { throw new Error('Import must be valid JSON.'); }
+  // ID-less records are inserts. Reserve IDs already present in storage or
+  // explicitly supplied in the import, so generated IDs cannot overwrite them.
+  const current = await loadAllStores();
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error('Import must be a JSON object.');
+  }
+  const input = parsed as Record<string, unknown>;
+  for (const storeName of storeNames) {
+    const rows = input[storeName];
+    if (!Array.isArray(rows)) continue; // validateDatabase reports missing/invalid arrays.
+    const reserved = new Set<number>([
+      ...current[storeName].map(row => row.id),
+      ...rows.filter(row => typeof row === 'object' && row !== null && !Array.isArray(row) && typeof row.id === 'number').map(row => row.id as number)
+    ]);
+    let nextId = 1;
+    for (const row of rows) {
+      if (typeof row !== 'object' || row === null || Array.isArray(row) || Object.hasOwn(row, 'id')) continue;
+      while (reserved.has(nextId)) nextId++;
+      row.id = nextId;
+      reserved.add(nextId++);
+    }
+  }
   const data = validateDatabase(parsed);
   const database = await openDatabase();
   try {
