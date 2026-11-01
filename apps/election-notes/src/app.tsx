@@ -1083,9 +1083,13 @@ function ElectionScoringReport({
 }) {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectionSnapshot, setSelectionSnapshot] = useState<Id[]>([]);
+  const [selectionDraft, setSelectionDraft] = useState<Id[]>([]);
   const contest = contestScore.contest;
-  const selectedIds = contest?.selectedCandidateIds ?? [];
-  const updateSelection = (ids: Id[]) => { if (contest) void onSaveEntity('contests', { ...contest, selectedCandidateIds: ids }, election.id); };
+  const selectedIds = selectionMode ? selectionDraft : (contest?.selectedCandidateIds ?? []);
+  const updateSelection = (ids: Id[]) => {
+    setSelectionDraft(ids);
+    if (contest) void onSaveEntity('contests', { ...contest, selectedCandidateIds: ids }, election.id);
+  };
   const isExpandedContest = expandedContestId === contestScore.contest?.id;
   return (
     <section className="dashboard">
@@ -1094,7 +1098,7 @@ function ElectionScoringReport({
         <div className="score-contest">
           {contest && <div className="score-selection-actions"><button type="button" onClick={() => {
             if (selectionMode) { updateSelection(selectionSnapshot); setSelectionMode(false); }
-            else { setSelectionSnapshot([...selectedIds]); setSelectionMode(true); }
+            else { setSelectionSnapshot([...selectedIds]); setSelectionDraft([...selectedIds]); setSelectionMode(true); }
           }}>{selectionMode ? 'Cancel' : 'Make Selection'}</button></div>}
           {contestScore.candidates.length === 0 && <p>No candidates selected.</p>}
           <div className="score-grid">
