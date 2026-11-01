@@ -1341,7 +1341,10 @@ textarea {
 
 .modal { max-height: min(90vh, 56rem); overflow-y: auto; }
 .modal textarea { min-height: 6rem; width: 100%; resize: vertical; }
-.export-election-list { display: grid; gap: .6rem; max-height: 17rem; overflow-y: auto; }
+.export-election-list { border: 1px solid #d8dee6; border-radius: .5rem; overflow: hidden; }
+.export-select-all { background: #f1f5f9; border-bottom: 1px solid #d8dee6; padding: .8rem .9rem; cursor: pointer; }
+.export-election-items { display: grid; gap: .75rem; max-height: 17rem; overflow-y: auto; padding: .85rem .9rem; }
+.export-election-items .checkbox-row { cursor: pointer; }
 .modal-actions { flex-wrap: wrap; }
 
 .modal p.reset-warning {
@@ -1353,3 +1356,5 @@ textarea {
 .import-prompt-field textarea { padding-right: 4rem; }
 .import-prompt-copy { position: absolute; top: .5rem; right: 1.5rem; display: flex; align-items: center; justify-content: center; padding: .35rem; border-radius: .35rem; background: #fff; color: #475569; border: 1px solid #cbd5e1; cursor: pointer; }
 .import-prompt-copy:hover { background: #f1f5f9; }
+
+.export-election-list input[type="checkbox"] { border-radius: .25rem; }
