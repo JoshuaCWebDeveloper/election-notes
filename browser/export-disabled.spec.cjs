@@ -26,6 +26,19 @@ test('candidate selections are shared between election contests and data entry',
   await expect(report.locator('.score-card.candidate-chosen')).toHaveCount(1);
   await page.screenshot({ path: testInfo.outputPath('selection-from-contest.png'), fullPage: true });
   await report.getByRole('button', { name: 'Make Selection' }).click();
+  await page.screenshot({ path: testInfo.outputPath('selection-mode-checkbox-inside-card.png'), fullPage: true });
+  const bounds = await report.locator('.score-selection-row').first().evaluate(row => {
+    const card = row.getBoundingClientRect();
+    const box = row.querySelector('input[type=checkbox]').getBoundingClientRect();
+    return { card: { x: card.x, y: card.y, width: card.width, height: card.height }, checkbox: { x: box.x, y: box.y, width: box.width, height: box.height } };
+  });
+  console.log('SELECTION CARD GEOMETRY', JSON.stringify(bounds));
+  expect(bounds.card.height).toBeGreaterThanOrEqual(72);
+  expect(bounds.checkbox.x).toBeGreaterThan(bounds.card.x);
+  expect(bounds.checkbox.x + bounds.checkbox.width).toBeLessThan(bounds.card.x + bounds.card.width);
+  expect(bounds.checkbox.y).toBeGreaterThan(bounds.card.y);
+  expect(bounds.checkbox.y + bounds.checkbox.height).toBeLessThan(bounds.card.y + bounds.card.height);
+
   await report.getByRole('checkbox', { name: /Select .* in election data/ }).nth(1).click();
   await expect(contest.locator('.included-row.candidate-chosen')).toHaveCount(2);
   await expect(report.getByRole('button', { name: 'Make Selection' })).toBeVisible();
