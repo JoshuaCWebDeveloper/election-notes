@@ -1389,3 +1389,18 @@ textarea {
 .score-selection-row .score-card { flex: 1; min-width: 0; }
 .included-row { display: flex; }
 .included-row span { flex: 1; }
+
+/* Contest title gets its own row; action labels must never be squeezed into icon-sized buttons. */
+.contest-editor-heading { grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; }
+.contest-editor-heading > input { grid-column: 1 / -1; min-width: 0; width: 100%; }
+.contest-editor-heading .contest-selection-trigger {
+  grid-column: 1;
+  justify-self: start;
+  aspect-ratio: auto;
+  width: auto;
+  min-width: max-content;
+  white-space: nowrap;
+  padding: .35rem .7rem;
+}
+.contest-editor-heading .contest-note-trigger { grid-column: 2; white-space: nowrap; }
+.contest-editor-heading .danger { grid-column: 3; }
