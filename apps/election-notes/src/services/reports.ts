@@ -130,9 +130,7 @@ export function getCandidateContestRows(db: Database, election?: Election | null
   if (db.elections.length === 0) {
     return [{
       contest: null,
-      candidates: [...db.candidates]
-        .sort((left, right) => (right.score ?? Number.NEGATIVE_INFINITY) - (left.score ?? Number.NEGATIVE_INFINITY))
-        .map((candidate) => ({ candidate, score: candidate.score ?? 0 }))
+      candidates: [...db.candidates].map((candidate) => ({ candidate, score: 0 }))
     }];
   }
 

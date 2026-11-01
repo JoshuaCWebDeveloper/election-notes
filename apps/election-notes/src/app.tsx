@@ -241,16 +241,12 @@ const tabs: Tab[] = [
   {
     key: 'candidates',
     label: 'Candidates',
-    summary: (row) => `Score ${formatScore((row as Candidate).score)} with confidence ${formatScore((row as Candidate).confidence)}`,
-    blank: (db) => ({ id: nextId(db.candidates), firstName: '', middleName: null, lastName: '', score: null, confidence: null, stancesCount: null, confidenceScoreProduct: null }),
+    summary: (row, db) => `${db.stances.filter((stance) => stance.candidate === (row as Candidate).id).length} stances`,
+    blank: (db) => ({ id: nextId(db.candidates), firstName: '', middleName: null, lastName: '' }),
     fields: [
       { key: 'firstName', label: 'First name', type: 'text', nullable: true },
       { key: 'middleName', label: 'Middle name', type: 'text', nullable: true },
-      { key: 'lastName', label: 'Last name', type: 'text', nullable: true },
-      { key: 'score', label: 'Legacy score', type: 'number', nullable: true },
-      { key: 'confidence', label: 'Confidence', type: 'number', nullable: true },
-      { key: 'stancesCount', label: 'Stances count', type: 'number', nullable: true },
-      { key: 'confidenceScoreProduct', label: 'Confidence score product', type: 'number', nullable: true }
+      { key: 'lastName', label: 'Last name', type: 'text', nullable: true }
     ]
   },
   {

@@ -5,10 +5,6 @@ export type Candidate = {
   firstName: string | null;
   middleName: string | null;
   lastName: string | null;
-  score: number | null;
-  confidence: number | null;
-  stancesCount: number | null;
-  confidenceScoreProduct: number | null;
 };
 
 export type Issue = {

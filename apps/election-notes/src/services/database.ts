@@ -25,11 +25,7 @@ const rowShape: Record<EntityKey, Record<string, ValidationRule>> = {
     id: 'requiredNumber',
     firstName: 'string',
     middleName: 'string',
-    lastName: 'string',
-    score: 'number',
-    confidence: 'number',
-    stancesCount: 'number',
-    confidenceScoreProduct: 'number'
+    lastName: 'string'
   },
   issues: {
     id: 'requiredNumber',
@@ -213,7 +209,13 @@ export function normalizeDatabase(value: unknown): Database {
     : value.elections;
 
   return {
-    candidates: structuredClone(value.candidates),
+    candidates: Array.isArray(value.candidates)
+      ? value.candidates.map((candidate) => {
+        if (!isRecord(candidate)) return structuredClone(candidate);
+        const { score: _score, confidence: _confidence, stancesCount: _stancesCount, confidenceScoreProduct: _product, ...clean } = candidate;
+        return clean;
+      })
+      : structuredClone(value.candidates),
     issues: Array.isArray(value.issues)
       ? value.issues.map((issue) => {
         if (!isRecord(issue)) return structuredClone(issue);

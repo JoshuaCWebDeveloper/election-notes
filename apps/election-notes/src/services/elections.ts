@@ -38,11 +38,7 @@ export function candidateFromInlineName(name: string, db: Database): Candidate {
     id: nextId(db.candidates),
     firstName: parts.join(' ') || null,
     middleName: null,
-    lastName,
-    score: null,
-    confidence: null,
-    stancesCount: null,
-    confidenceScoreProduct: null
+    lastName
   };
 }
 

@@ -41,11 +41,11 @@ describe('import', () => {
   it('remaps temporary IDs to existing names across relationships', async () => {
     const existing = empty();
     existing.elections = [{ id: 55, name: 'Same election', date: null, date_updated: null, description: null, issues: [] }];
-    existing.candidates = [{ id: 73, firstName: 'Alex', middleName: null, lastName: 'Example', score: null, confidence: null, stancesCount: null, confidenceScoreProduct: null }];
+    existing.candidates = [{ id: 73, firstName: 'Alex', middleName: null, lastName: 'Example' }];
     await replaceAllStores(existing);
     const source = empty();
     source.elections = [{ ...existing.elections[0], id: 1, description: 'Updated' }];
-    source.candidates = [{ ...existing.candidates[0], id: 2, score: 9 }];
+    source.candidates = [{ ...existing.candidates[0], id: 2 }];
     source.contests = [{ id: 3, electionId: 1, name: 'Office', notes: null, candidateIds: [2] }];
     const result = await importDatabaseJson(JSON.stringify(source));
     expect(result.elections).toHaveLength(1);
@@ -57,7 +57,7 @@ describe('import', () => {
   });
   it('reuses an existing stance-fact link and creates only missing pairs', async () => {
     const db = empty();
-    db.candidates = [{ id: 20, firstName: 'Alex', middleName: null, lastName: 'Example', score: null, confidence: null, stancesCount: null, confidenceScoreProduct: null }];
+    db.candidates = [{ id: 20, firstName: 'Alex', middleName: null, lastName: 'Example' }];
     db.issues = [{ id: 30, name: 'Roads', description: null }];
     db.stances = [{ id: 40, date_created: null, date_updated: null, title: 'Support', candidate: 20, issue: 30, rating: null, confidence: null, description: null }];
     db.facts = [
@@ -80,7 +80,7 @@ describe('import', () => {
   it('preserves contest candidate selections across import and export', async () => {
     const batch = empty();
     batch.elections = [{ id: 5, name: 'Selection test', date: null, date_updated: null, description: null, issues: [] }];
-    batch.candidates = [{ id: 6, firstName: 'A', middleName: null, lastName: 'B', score: null, confidence: null, stancesCount: null, confidenceScoreProduct: null }];
+    batch.candidates = [{ id: 6, firstName: 'A', middleName: null, lastName: 'B' }];
     batch.contests = [{ id: 7, electionId: 5, name: 'Contest', notes: null, candidateIds: [6], selectedCandidateIds: [6] }];
     const result = await importDatabaseJson(JSON.stringify(batch));
     expect(result.contests[0].selectedCandidateIds).toEqual([result.candidates[0].id]);

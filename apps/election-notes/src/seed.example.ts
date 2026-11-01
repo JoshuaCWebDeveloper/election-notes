@@ -6,21 +6,13 @@ export const seedData: Database = {
       id: 1,
       firstName: 'Alex',
       middleName: null,
-      lastName: 'Example',
-      score: 72,
-      confidence: 80,
-      stancesCount: 1,
-      confidenceScoreProduct: 5760
+      lastName: 'Example'
     },
     {
       id: 2,
       firstName: 'Jordan',
       middleName: 'Q',
-      lastName: 'Sample',
-      score: 64,
-      confidence: 65,
-      stancesCount: 1,
-      confidenceScoreProduct: 4160
+      lastName: 'Sample'
     }
   ],
   issues: [

@@ -15,7 +15,7 @@ export const storeNames: StoreName[] = [
 ];
 
 const databaseName = 'election-notes';
-const databaseVersion = 10;
+const databaseVersion = 11;
 const metadataStoreName = 'metadata';
 const legacyStorageKey = 'election-notes-db-v1';
 const initializedKey = 'initialized';
@@ -72,6 +72,9 @@ export function openDatabase(): Promise<IDBDatabase> {
       }
       if (event.oldVersion > 0 && event.oldVersion < 10) {
         migrateContestNotes(request.transaction);
+      }
+      if (event.oldVersion > 0 && event.oldVersion < 11) {
+        migrateCandidateMetrics(request.transaction);
       }
     };
 
@@ -139,6 +142,18 @@ function migrateIssueConfidence(transaction: IDBTransaction | null): void {
 
     const { confidence: _confidence, ...nextIssue } = cursor.value as Record<string, unknown>;
     cursor.update(nextIssue);
+    cursor.continue();
+  };
+}
+
+function migrateCandidateMetrics(transaction: IDBTransaction | null): void {
+  if (!transaction) return;
+  const request = transaction.objectStore('candidates').openCursor();
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return;
+    const { score: _score, confidence: _confidence, stancesCount: _stancesCount, confidenceScoreProduct: _product, ...clean } = cursor.value as Record<string, unknown>;
+    cursor.update(clean);
     cursor.continue();
   };
 }
