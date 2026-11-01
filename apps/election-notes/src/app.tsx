@@ -1104,7 +1104,7 @@ function ElectionScoringReport({
               const isExpandedCandidate = isExpandedContest && expandedCandidateId === score.candidate.id;
               return (
                 <div key={score.candidate.id} className={`score-selection-row${selectedIds.includes(score.candidate.id) ? ' candidate-chosen' : ''}${isExpandedCandidate ? ' expanded' : ''}`}>
-                {!selectionMode && selectedIds.includes(score.candidate.id) && <input type="checkbox" checked disabled aria-label={`${candidateName(score.candidate)} selected`} className="selection-indicator" />}
+                {!selectionMode && selectedIds.includes(score.candidate.id) && <input type="checkbox" checked readOnly tabIndex={-1} aria-label={`${candidateName(score.candidate)} selected`} className="selection-indicator" />}
                 {selectionMode && <input type="checkbox" aria-label={`Select ${candidateName(score.candidate)} in election data`} checked={selectedIds.includes(score.candidate.id)} onChange={(event) => { updateSelection(event.target.checked ? [...selectedIds, score.candidate.id] : selectedIds.filter(id => id !== score.candidate.id)); if (event.target.checked) setSelectionMode(false); }} />}
                 <button
                   className={`${isExpandedCandidate ? 'score-card expanded' : 'score-card'}${selectedIds.includes(score.candidate.id) ? ' candidate-chosen' : ''}`}
@@ -1979,7 +1979,7 @@ function ContestEditor({
               void onSaveContest({ ...contest, selectedCandidateIds: event.target.checked ? [...selectedIds, candidate.id] : selectedIds.filter(id => id !== candidate.id) });
               if (event.target.checked) setSelectionMode(false);
             }} />}
-            {!selectionMode && (contest.selectedCandidateIds ?? []).includes(candidate.id) && <input type="checkbox" checked disabled aria-label={`${candidateName(candidate)} selected`} className="selection-indicator" />}
+            {!selectionMode && (contest.selectedCandidateIds ?? []).includes(candidate.id) && <input type="checkbox" checked readOnly tabIndex={-1} aria-label={`${candidateName(candidate)} selected`} className="selection-indicator" />}
             <span>{candidateName(candidate)}</span>
             <button type="button" aria-label={`Remove ${candidateName(candidate)}`} onClick={() => updateContest({ ...draft, candidateIds: draft.candidateIds.filter((id) => id !== candidate.id), selectedCandidateIds: (contest.selectedCandidateIds ?? []).filter(id => id !== candidate.id) })}><X size={16} /></button>
           </div>

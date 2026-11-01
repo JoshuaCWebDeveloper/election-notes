@@ -1438,4 +1438,4 @@ textarea {
 
 /* Selected indicators use the same native checkbox geometry as selection mode. */
 .score-selection-row input.selection-indicator,
-.included-row input.selection-indicator { opacity: 1; cursor: default; }
+.included-row input.selection-indicator { opacity: 1; cursor: default; pointer-events: none; }
