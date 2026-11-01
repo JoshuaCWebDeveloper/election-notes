@@ -21,12 +21,12 @@ test('candidate selections are shared between election contests and data entry',
   const contest = page.locator('.contest-editor').first();
   const report = page.locator('.dashboard').filter({ has: page.getByRole('heading', { name: 'Candidate Data Entry' }) }).first();
   await contest.getByRole('button', { name: 'Make Selection' }).click();
-  await contest.getByRole('checkbox', { name: 'Select Alex Example' }).check();
+  await contest.getByRole('checkbox', { name: 'Select Alex Example' }).click();
   await expect(contest.getByRole('button', { name: 'Make Selection' })).toBeVisible();
   await expect(report.locator('.score-card.candidate-chosen')).toHaveCount(1);
   await page.screenshot({ path: testInfo.outputPath('selection-from-contest.png'), fullPage: true });
   await report.getByRole('button', { name: 'Make Selection' }).click();
-  await report.getByRole('checkbox', { name: /Select .* in election data/ }).nth(1).check();
+  await report.getByRole('checkbox', { name: /Select .* in election data/ }).nth(1).click();
   await expect(contest.locator('.included-row.candidate-chosen')).toHaveCount(2);
   await expect(report.getByRole('button', { name: 'Make Selection' })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('selection-from-election-data.png'), fullPage: true });
