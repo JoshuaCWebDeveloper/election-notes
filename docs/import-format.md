@@ -1,8 +1,10 @@
-# Creating an Election Notes import
+# Election Notes import file format
 
-Imports accept the same JSON object as an **Export All** download. Import **upserts** each supplied record by its numeric `id`: matching IDs are replaced, and other local records remain unchanged. To replace the entire database instead, use **Reset**. Import the file from **Import** in the sidebar, or paste its JSON directly.
+An import file is a UTF-8 JSON object containing eight named arrays. This document describes how to construct a valid file, including every required field and relationship.
 
-Every import object must contain all eight array properties, even when some are empty:
+## Top-level structure
+
+All eight properties are required, even when the corresponding array is empty. No other top-level properties are allowed.
 
 ```json
 {
@@ -17,17 +19,42 @@ Every import object must contain all eight array properties, even when some are 
 }
 ```
 
-For the exact schema and nullable fields, consult [`apps/election-notes/src/types.ts`](../apps/election-notes/src/types.ts) and the [public example data](../apps/election-notes/src/seed.example.ts). You can also **Export All**, edit the resulting JSON, and import it again. Each record must contain all fields defined for its type (with `null` for absent optional values); unknown fields are rejected. Each ID is a number. Reusing an existing ID **overwrites** that record rather than merging individual fields.
+## Record formats
 
-## Relationships
+Each array contains objects with **exactly** the fields listed below. Every field is required, including nullable fields. `string?` means a string or `null`; `number?` means a number or `null`. Arrays must be JSON arrays. IDs are numbers, not strings. Field names are case-sensitive (`Summary` starts with a capital S).
 
-- `contests[].electionId` identifies the parent election; `contests[].candidateIds` lists candidate IDs.
-- `elections[].issues` lists objects with `issueId` and `points`, referencing issues.
+| Array | Required fields and types |
+| --- | --- |
+| `candidates` | `id: number`, `firstName: string?`, `middleName: string?`, `lastName: string?`, `score: number?`, `confidence: number?`, `stancesCount: number?`, `confidenceScoreProduct: number?` |
+| `issues` | `id: number`, `name: string?`, `description: string?` |
+| `stances` | `id: number`, `date_created: string?`, `date_updated: string?`, `title: string?`, `candidate: number?`, `issue: number?`, `rating: number?`, `confidence: number?`, `description: string?` |
+| `facts` | `id: number`, `date_created: string?`, `date_updated: string?`, `Summary: string?`, `description: string?` |
+| `stanceFacts` | `id: number`, `stance: number?`, `fact: number?` |
+| `firstRecords` | `id: number`, `status: string`, `sort: number?`, `user_created: string?`, `date_created: string?`, `user_updated: string?`, `date_updated: string?`, `name: string?` |
+| `elections` | `id: number`, `name: string`, `date: string?`, `date_updated: string?`, `description: string?`, `issues: {issueId: number, points: number}[]` |
+| `contests` | `id: number`, `electionId: number`, `name: string`, `notes: string?`, `candidateIds: number[]` |
+
+Dates are strings (prefer ISO 8601) or `null`; the validator does not require a particular date format. It also does not impose value ranges on numeric fields.
+
+## IDs and relationships
+
+Choose unique numeric IDs within each array. The same numeric ID may appear in different arrays because each array is a distinct collection.
+
+- `contests[].electionId` references `elections[].id`.
+- `contests[].candidateIds` contains IDs from `candidates`.
+- `elections[].issues` contains objects with an `issueId` referencing `issues` and numeric `points`.
 - `stances[].candidate` and `stances[].issue` reference candidates and issues.
-- `stanceFacts[].stance` and `.fact` reference stances and facts.
+- `stanceFacts[].stance` and `stanceFacts[].fact` reference stances and facts.
 
-Use unique IDs within each collection and include all referenced records unless those records are already present in the destination database. For portable imports, include them all. Export Selected includes directly or indirectly related records; Export All preserves the entire database, including records not linked to an election.
+For a self-contained import, include every referenced record and ensure all ID references agree. When imported into an existing database, a record with the same collection and ID replaces the existing record in full, so avoid accidental ID collisions.
 
-## AI-generated imports
+## How to create an import file
 
-Give an AI agent the link to this document, the type definitions, and the data you want converted. Ask it to return **only one JSON object** using the eight named arrays above, matching all required fields and maintaining consistent references. Inspect its output before importing, especially when IDs may already exist in your database.
+1. Identify the elections and contests to represent. Assign a numeric ID to every record, keeping IDs unique within each array.
+2. Construct each record with all fields shown above; write `null` for unknown nullable values.
+3. Fill in references between records using the chosen IDs. Include supporting candidates, issues, stances, facts, and link records as needed.
+4. Assemble the eight top-level arrays. Empty collections must still be present as `[]`.
+5. Serialize as valid JSON, with double-quoted property names and strings, no comments, and no trailing commas.
+6. Verify every record's field names and types, uniqueness of IDs, and consistency of references.
+
+The [TypeScript data definitions](../apps/election-notes/src/types.ts) and [import validation rules](../apps/election-notes/src/services/database.ts) provide the definitive schema. The [example data](../apps/election-notes/src/seed.example.ts) contains complete sample records.
