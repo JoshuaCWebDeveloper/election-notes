@@ -1433,3 +1433,8 @@ textarea {
 .score-selection-row.expanded { border-color: #176b87; box-shadow: 0 0 0 2px rgba(23, 107, 135, .12); }
 .score-selection-row.candidate-chosen { background: #e8f7ed; border-color: #89cba0; }
 .score-selection-row.candidate-chosen:hover { background: #d8f1e1; }
+/* Keep status, expansion chevron and name/points on the same line. */
+.score-card:has(> svg[aria-label="Selected"]) {
+  grid-template-columns: auto auto minmax(0, 1fr);
+}
+.score-card > span { grid-row: 1; }

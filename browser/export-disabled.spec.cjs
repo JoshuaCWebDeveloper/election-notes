@@ -24,6 +24,13 @@ test('candidate selections are shared between election contests and data entry',
   await contest.getByRole('checkbox', { name: 'Select Alex Example' }).click();
   await expect(contest.getByRole('button', { name: 'Make Selection' })).toBeVisible();
   await expect(report.locator('.score-card.candidate-chosen')).toHaveCount(1);
+  const selectedLayout = await report.locator('.score-card.candidate-chosen').first().evaluate(card => {
+    const icons = [...card.querySelectorAll(':scope > svg')].map(el => el.getBoundingClientRect());
+    const label = card.querySelector(':scope > span').getBoundingClientRect();
+    return { iconCenters: icons.map(box => box.y + box.height / 2), labelCenter: label.y + label.height / 2 };
+  });
+  console.log('SELECTED CARD ALIGNMENT', JSON.stringify(selectedLayout));
+  for (const y of selectedLayout.iconCenters) expect(Math.abs(y - selectedLayout.labelCenter)).toBeLessThan(18);
   await page.screenshot({ path: testInfo.outputPath('selection-from-contest.png'), fullPage: true });
   await report.getByRole('button', { name: 'Make Selection' }).click();
   await page.screenshot({ path: testInfo.outputPath('selection-mode-checkbox-inside-card.png'), fullPage: true });
