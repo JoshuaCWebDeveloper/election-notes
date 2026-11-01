@@ -82,7 +82,8 @@ const rowShape: Record<EntityKey, Record<string, ValidationRule>> = {
     electionId: 'requiredNumber',
     name: 'requiredString',
     notes: 'string',
-    candidateIds: 'idArray'
+    candidateIds: 'idArray',
+    selectedCandidateIds: 'idArray'
   }
 };
 
@@ -183,7 +184,8 @@ export function normalizeDatabase(value: unknown): Database {
       if (!isRecord(contest)) return structuredClone(contest) as Contest;
       return {
         ...structuredClone(contest),
-        notes: typeof contest.notes === 'string' ? contest.notes : null
+        notes: typeof contest.notes === 'string' ? contest.notes : null,
+        selectedCandidateIds: Array.isArray(contest.selectedCandidateIds) ? contest.selectedCandidateIds : []
       } as Contest;
     })
     : [];
@@ -198,7 +200,8 @@ export function normalizeDatabase(value: unknown): Database {
           electionId,
           name: `${typeof election.name === 'string' ? election.name : 'Election'} contest`,
           notes: null,
-          candidateIds: candidateIds.filter((id): id is Id => typeof id === 'number')
+          candidateIds: candidateIds.filter((id): id is Id => typeof id === 'number'),
+          selectedCandidateIds: []
         });
       }
       return {

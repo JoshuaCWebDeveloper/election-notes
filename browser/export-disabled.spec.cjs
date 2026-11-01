@@ -14,3 +14,21 @@ test('deployed export button is visibly and functionally disabled with no electi
   await expect(dialog.getByRole('button', { name: /^Export [1-9]/ })).toBeEnabled();
   await page.screenshot({ path: testInfo.outputPath('export-selected.png'), fullPage: true });
 });
+
+test('candidate selection works in contests and election data, and Cancel restores previous state', async ({ page }, testInfo) => {
+  await page.goto('https://joshuacwebdeveloper.github.io/election-notes/');
+  await page.getByRole('button', { name: /Example Local Election/ }).first().click();
+  const contest = page.locator('.contest-editor').first();
+  await contest.getByRole('button', { name: 'Make Selection' }).click();
+  const candidate = contest.getByRole('checkbox', { name: /Select / }).first();
+  await candidate.check();
+  await expect(contest.locator('.included-row.candidate-chosen')).toHaveCount(1);
+  await page.screenshot({ path: testInfo.outputPath('contest-candidate-selected.png'), fullPage: true });
+  await contest.getByRole('button', { name: 'Cancel' }).click();
+  await expect(contest.locator('.included-row.candidate-chosen')).toHaveCount(0);
+  const report = page.locator('.dashboard').filter({has: page.getByRole('heading', {name: 'Candidate Data Entry'})}).first();
+  await report.getByRole('button', { name: 'Make Selection' }).click();
+  await report.getByRole('checkbox', { name: /Select .* in election data/ }).first().check();
+  await expect(report.locator('.score-card.candidate-chosen')).toHaveCount(1);
+  await page.screenshot({ path: testInfo.outputPath('election-data-selected.png'), fullPage: true });
+});

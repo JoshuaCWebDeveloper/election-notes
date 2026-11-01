@@ -381,7 +381,7 @@ describe.sequential('database service data operations', () => {
     const expected = {
       ...legacy,
       elections: [{ id: 201, name: 'Legacy election', date: null, date_updated: null, description: null, issues: [] }],
-      contests: [{ id: 1, electionId: 201, name: 'Legacy election contest', notes: null, candidateIds: [101] }]
+      contests: [{ id: 1, electionId: 201, name: 'Legacy election contest', notes: null, candidateIds: [101], selectedCandidateIds: [] }]
     };
     localStorage.setItem(legacyStorageKey, JSON.stringify(legacyJson));
 
@@ -860,7 +860,8 @@ describe('election UX helpers', () => {
       electionId: 9,
       name: 'Mayor',
       notes: null,
-      candidateIds: []
+      candidateIds: [],
+      selectedCandidateIds: []
     });
   });
 });

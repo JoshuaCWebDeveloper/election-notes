@@ -74,6 +74,7 @@ export type Contest = {
   name: string;
   notes: string | null;
   candidateIds: Id[];
+  selectedCandidateIds?: Id[];
 };
 
 export type Database = {

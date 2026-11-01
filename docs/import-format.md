@@ -32,7 +32,7 @@ Each array contains objects with **exactly** the fields listed below. Every list
 | `stanceFacts` | `id?: number`, `stance: number?`, `fact: number?` |
 | `firstRecords` | `id?: number`, `status: string`, `sort: number?`, `user_created: string?`, `date_created: string?`, `user_updated: string?`, `date_updated: string?`, `name: string?` |
 | `elections` | `id?: number`, `name: string`, `date: string?`, `date_updated: string?`, `description: string?`, `issues: {issueId: number, points: number}[]` |
-| `contests` | `id?: number`, `electionId: number`, `name: string`, `notes: string?`, `candidateIds: number[]` |
+| `contests` | `id?: number`, `electionId: number`, `name: string`, `notes: string?`, `candidateIds: number[]`, `selectedCandidateIds: number[]` |
 
 Dates are strings (prefer ISO 8601) or `null`; the validator does not require a particular date format. It also does not impose value ranges on numeric fields.
 
@@ -71,3 +71,5 @@ Use unique import IDs within each collection. Supply distinct, nonempty identify
 6. Verify every record's field names and types, uniqueness of temporary IDs, and consistency of references.
 
 The [TypeScript data definitions](../apps/election-notes/src/types.ts) and [import validation rules](../apps/election-notes/src/services/database.ts) provide the definitive schema. The [example data](../apps/election-notes/src/seed.example.ts) contains complete sample records.
+
+`contests[].selectedCandidateIds` lists selected candidate IDs within the contest. Omit it in older files to default to an empty list; for new imports, include it as `[]` when no candidates have been selected.

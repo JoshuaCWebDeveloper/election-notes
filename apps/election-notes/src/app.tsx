@@ -1,5 +1,5 @@
 import { exportElectionJson, importDatabaseJson } from './services/importExport';
-import { ChevronDown, ChevronRight, Copy, Download, Menu, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Copy, Download, Menu, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getReportChartLayout, ReportChart } from './components/reportChart';
@@ -1081,29 +1081,42 @@ function ElectionScoringReport({
   onExpansionChange: (contestId: Id | null, candidateId: Id | null, stanceId?: Id | null) => void;
   onSaveEntity: <TStore extends EntityKey>(storeName: TStore, row: Database[TStore][number], electionId: Id) => Promise<void>;
 }) {
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectionSnapshot, setSelectionSnapshot] = useState<Id[]>([]);
+  const contest = contestScore.contest;
+  const selectedIds = contest?.selectedCandidateIds ?? [];
+  const updateSelection = (ids: Id[]) => { if (contest) void onSaveEntity('contests', { ...contest, selectedCandidateIds: ids }, election.id); };
   const isExpandedContest = expandedContestId === contestScore.contest?.id;
   return (
     <section className="dashboard">
       <h4 className="dashboard-title">Candidate Data Entry</h4>
       <article className="data-entry-panel wide-panel">
         <div className="score-contest">
+          {contest && <div className="score-selection-actions"><button type="button" onClick={() => {
+            if (selectionMode) { updateSelection(selectionSnapshot); setSelectionMode(false); }
+            else { setSelectionSnapshot([...selectedIds]); setSelectionMode(true); }
+          }}>{selectionMode ? 'Cancel' : 'Make Selection'}</button></div>}
           {contestScore.candidates.length === 0 && <p>No candidates selected.</p>}
           <div className="score-grid">
             {contestScore.candidates.map((score) => {
               const isExpandedCandidate = isExpandedContest && expandedCandidateId === score.candidate.id;
               return (
+                <div className={`score-selection-row${selectedIds.includes(score.candidate.id) ? ' candidate-chosen' : ''}`}>
+                {selectionMode && <input type="checkbox" aria-label={`Select ${candidateName(score.candidate)} in election data`} checked={selectedIds.includes(score.candidate.id)} onChange={(event) => updateSelection(event.target.checked ? [...selectedIds, score.candidate.id] : selectedIds.filter(id => id !== score.candidate.id))} />}
                 <button
-                  className={isExpandedCandidate ? 'score-card expanded' : 'score-card'}
+                  className={`${isExpandedCandidate ? 'score-card expanded' : 'score-card'}${selectedIds.includes(score.candidate.id) ? ' candidate-chosen' : ''}`}
                   key={score.candidate.id}
                   type="button"
                   onClick={() => onExpansionChange(contestScore.contest?.id ?? null, isExpandedCandidate ? null : score.candidate.id)}
                 >
+                  {selectedIds.includes(score.candidate.id) && <Check size={16} aria-label="Selected" />}
                   {isExpandedCandidate ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   <span>
                     <strong>{candidateName(score.candidate)}</strong>
                     <b>{formatScore(score.score)} points</b>
                   </span>
                 </button>
+                </div>
               );
             })}
           </div>
@@ -1897,6 +1910,8 @@ function ContestEditor({
   const [draft, setDraft] = useState(contest);
   const [draftRevision, setDraftRevision] = useState(0);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectionSnapshot, setSelectionSnapshot] = useState<Id[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [search, setSearch] = useState('');
   const included = candidates.filter((candidate) => draft.candidateIds.includes(candidate.id));
@@ -1907,6 +1922,7 @@ function ContestEditor({
   useEffect(() => {
     setDraft(contest);
     setIsEditingNotes(false);
+    setSelectionMode(false);
   }, [contest.id]);
 
   const autoSave = useDebouncedAutoSave(draft, onSaveContest, autoSaveDelayMs, draftRevision);
@@ -1931,6 +1947,10 @@ function ContestEditor({
           value={draft.name}
           onChange={(event) => updateContest({ ...draft, name: event.target.value })}
         />
+        <button type="button" className="contest-selection-trigger" onClick={() => {
+          if (selectionMode) { updateContest({ ...draft, selectedCandidateIds: selectionSnapshot }); setSelectionMode(false); }
+          else { setSelectionSnapshot([...(draft.selectedCandidateIds ?? [])]); setSelectionMode(true); }
+        }}>{selectionMode ? 'Cancel' : 'Make Selection'}</button>
         {!showNotes && (
           <button type="button" className="contest-note-trigger" onClick={() => setIsEditingNotes(true)}>Add note</button>
         )}
@@ -1950,9 +1970,11 @@ function ContestEditor({
       <div className="included-list">
         {included.length === 0 && <p>No candidates selected.</p>}
         {included.map((candidate) => (
-          <div className="included-row" key={candidate.id}>
+          <div className={`included-row${(draft.selectedCandidateIds ?? []).includes(candidate.id) ? ' candidate-chosen' : ''}`} key={candidate.id}>
+            {selectionMode && <input type="checkbox" aria-label={`Select ${candidateName(candidate)}`} checked={(draft.selectedCandidateIds ?? []).includes(candidate.id)} onChange={(event) => updateContest({ ...draft, selectedCandidateIds: event.target.checked ? [...(draft.selectedCandidateIds ?? []), candidate.id] : (draft.selectedCandidateIds ?? []).filter(id => id !== candidate.id) })} />}
             <span>{candidateName(candidate)}</span>
-            <button type="button" aria-label={`Remove ${candidateName(candidate)}`} onClick={() => updateContest({ ...draft, candidateIds: draft.candidateIds.filter((id) => id !== candidate.id) })}><X size={16} /></button>
+            {(draft.selectedCandidateIds ?? []).includes(candidate.id) && <Check size={16} aria-label="Selected" />}
+            <button type="button" aria-label={`Remove ${candidateName(candidate)}`} onClick={() => updateContest({ ...draft, candidateIds: draft.candidateIds.filter((id) => id !== candidate.id), selectedCandidateIds: (draft.selectedCandidateIds ?? []).filter(id => id !== candidate.id) })}><X size={16} /></button>
           </div>
         ))}
       </div>

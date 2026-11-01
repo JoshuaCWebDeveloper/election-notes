@@ -108,6 +108,7 @@ export async function importDatabaseJson(json: string): Promise<Database> {
       if (store === 'contests') {
         row.electionId = referenced('elections', row.electionId);
         row.candidateIds = (row.candidateIds as number[]).map(id => referenced('candidates', id));
+        row.selectedCandidateIds = ((row.selectedCandidateIds as number[] | undefined) ?? []).map(id => referenced('candidates', id));
       } else if (store === 'stances') {
         row.candidate = referenced('candidates', row.candidate);
         row.issue = referenced('issues', row.issue);

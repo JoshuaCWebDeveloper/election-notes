@@ -1373,3 +1373,19 @@ textarea {
   opacity: .7;
 }
 .modal-actions button:disabled:hover { border-color: #d1d5db; }
+
+/* Candidate selections are scoped to each contest and remain visible outside edit mode. */
+.contest-editor-heading .contest-selection-trigger { white-space: nowrap; }
+.included-row.candidate-chosen, .score-card.candidate-chosen {
+  background: #e8f7ed;
+  border-color: #89cba0;
+  color: #176238;
+}
+.included-row.candidate-chosen:hover, .score-card.candidate-chosen:hover { background: #d8f1e1; }
+.included-row.candidate-chosen > svg, .score-card.candidate-chosen > svg:first-child { color: #16803d; flex-shrink: 0; }
+.included-row input[type="checkbox"], .score-selection-row input[type="checkbox"] { width: 1rem; min-height: 1rem; flex-shrink: 0; accent-color: #16803d; cursor: pointer; }
+.score-selection-actions { display: flex; justify-content: flex-end; margin-bottom: .75rem; }
+.score-selection-row { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.score-selection-row .score-card { flex: 1; min-width: 0; }
+.included-row { display: flex; }
+.included-row span { flex: 1; }

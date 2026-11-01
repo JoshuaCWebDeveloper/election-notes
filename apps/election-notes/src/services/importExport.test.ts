@@ -77,6 +77,15 @@ describe('import', () => {
     expect(result.stanceFacts).toContainEqual({ id: 60, stance: 40, fact: 50 });
     expect(result.stanceFacts).toContainEqual({ id: 1, stance: 40, fact: 51 });
   });
+  it('preserves contest candidate selections across import and export', async () => {
+    const batch = empty();
+    batch.elections = [{ id: 5, name: 'Selection test', date: null, date_updated: null, description: null, issues: [] }];
+    batch.candidates = [{ id: 6, firstName: 'A', middleName: null, lastName: 'B', score: null, confidence: null, stancesCount: null, confidenceScoreProduct: null }];
+    batch.contests = [{ id: 7, electionId: 5, name: 'Contest', notes: null, candidateIds: [6], selectedCandidateIds: [6] }];
+    const result = await importDatabaseJson(JSON.stringify(batch));
+    expect(result.contests[0].selectedCandidateIds).toEqual([result.candidates[0].id]);
+    expect(selectElectionData(result, [result.elections[0].id]).contests[0].selectedCandidateIds).toEqual([result.candidates[0].id]);
+  });
   it('rejects malformed JSON without altering data', async () => {
     await expect(importDatabaseJson('{broken')).rejects.toThrow('valid JSON');
     expect(await loadAllStores()).toEqual(empty());
