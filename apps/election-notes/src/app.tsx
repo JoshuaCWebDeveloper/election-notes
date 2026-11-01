@@ -1105,11 +1105,10 @@ function ElectionScoringReport({
             {contestScore.candidates.map((score) => {
               const isExpandedCandidate = isExpandedContest && expandedCandidateId === score.candidate.id;
               return (
-                <div className={`score-selection-row${selectedIds.includes(score.candidate.id) ? ' candidate-chosen' : ''}`}>
+                <div key={score.candidate.id} className={`score-selection-row${selectedIds.includes(score.candidate.id) ? ' candidate-chosen' : ''}${isExpandedCandidate ? ' expanded' : ''}`}>
                 {selectionMode && <input type="checkbox" aria-label={`Select ${candidateName(score.candidate)} in election data`} checked={selectedIds.includes(score.candidate.id)} onChange={(event) => updateSelection(event.target.checked ? [...selectedIds, score.candidate.id] : selectedIds.filter(id => id !== score.candidate.id))} />}
                 <button
                   className={`${isExpandedCandidate ? 'score-card expanded' : 'score-card'}${selectedIds.includes(score.candidate.id) ? ' candidate-chosen' : ''}`}
-                  key={score.candidate.id}
                   type="button"
                   onClick={() => onExpansionChange(contestScore.contest?.id ?? null, isExpandedCandidate ? null : score.candidate.id)}
                 >

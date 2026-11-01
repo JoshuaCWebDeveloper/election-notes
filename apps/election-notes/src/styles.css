@@ -1404,3 +1404,32 @@ textarea {
 }
 .contest-editor-heading .contest-note-trigger { grid-column: 2; white-space: nowrap; }
 .contest-editor-heading .danger { grid-column: 3; }
+
+/* The checkbox and candidate details share one full-height card boundary. */
+.score-selection-row {
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  min-height: 4.5rem;
+  padding: 0;
+  gap: 0;
+  background: #fff;
+  overflow: hidden;
+}
+.score-selection-row > input[type="checkbox"] {
+  margin: 0 0 0 .9rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  min-height: 1.1rem;
+}
+.score-selection-row .score-card {
+  align-self: stretch;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: .7rem;
+}
+.score-selection-row:has(.score-card:hover) { border-color: #607089; }
+.score-selection-row.expanded { border-color: #176b87; box-shadow: 0 0 0 2px rgba(23, 107, 135, .12); }
+.score-selection-row.candidate-chosen { background: #e8f7ed; border-color: #89cba0; }
+.score-selection-row.candidate-chosen:hover { background: #d8f1e1; }
