@@ -1348,3 +1348,8 @@ textarea {
   color: #b91c1c;
   font-weight: 650;
 }
+
+.import-prompt-field { position: relative; }
+.import-prompt-field textarea { padding-right: 2.8rem; }
+.import-prompt-copy { position: absolute; top: .5rem; right: .5rem; display: flex; align-items: center; justify-content: center; padding: .35rem; border-radius: .35rem; background: #fff; color: #475569; border: 1px solid #cbd5e1; cursor: pointer; }
+.import-prompt-copy:hover { background: #f1f5f9; }
