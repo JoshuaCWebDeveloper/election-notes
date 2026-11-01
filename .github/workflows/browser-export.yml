@@ -1,0 +1,23 @@
+name: Verify Export UI in Browser
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm install --no-save --package-lock=false @playwright/test
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test browser/export-disabled.spec.cjs --reporter=line
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: export-ui-browser-evidence
+          path: test-results/
+          if-no-files-found: ignore
