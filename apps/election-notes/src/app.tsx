@@ -1416,6 +1416,17 @@ function Editor({
           ))}
         </div>
       )}
+      {tab.key === 'candidates' && (
+        <section className="candidate-election-memberships" aria-label="Candidate elections">
+          <h4>Elections</h4>
+          {db.contests.filter(contest => contest.candidateIds.includes(row.id)).map(contest => ({ contest, election: db.elections.find(election => election.id === contest.electionId) })).filter((item): item is { contest: Contest; election: Election } => item.election !== undefined).sort((left, right) => dateValue(right.election.date) - dateValue(left.election.date) || left.election.name.localeCompare(right.election.name) || left.contest.name.localeCompare(right.contest.name)).map(({ contest, election }) => (
+            <div className="candidate-election-membership" key={contest.id}>
+              <strong>{election.name}</strong><span> – {contest.name}</span>
+            </div>
+          ))}
+          {!db.contests.some(contest => contest.candidateIds.includes(row.id) && db.elections.some(election => election.id === contest.electionId)) && <p>No elections.</p>}
+        </section>
+      )}
       {tab.key === 'elections' && (
         <>
           <ReportsView
@@ -2215,7 +2226,10 @@ function getIssueElectionCount(db: Database, issueId: Id) {
 
 function sortRowsForTab<TStore extends EntityKey>(rows: Database[TStore], entity: TStore, db: Database): Database[TStore] {
   if (entity === 'elections') {
-    return [...rows].sort((left, right) => compareUpdatedDates(left as Election, right as Election)) as Database[TStore];
+    return [...rows].sort((left, right) => dateValue((right as Election).date) - dateValue((left as Election).date) || (left as Election).name.localeCompare((right as Election).name)) as Database[TStore];
+  }
+  if (entity === 'candidates') {
+    return [...rows].sort((left, right) => compareCandidatesByLastWord(left as Candidate, right as Candidate)) as Database[TStore];
   }
   if (entity === 'issues') {
     return [...rows].sort((left, right) => (
@@ -2224,10 +2238,6 @@ function sortRowsForTab<TStore extends EntityKey>(rows: Database[TStore], entity
     )) as Database[TStore];
   }
   return rows;
-}
-
-function compareUpdatedDates(left: Election, right: Election) {
-  return dateValue(right.date_updated) - dateValue(left.date_updated) || left.name.localeCompare(right.name);
 }
 
 function dateValue(value: string | null) {

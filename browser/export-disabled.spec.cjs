@@ -54,3 +54,12 @@ test('candidate selections are shared between election contests and data entry',
   await page.reload();
   await expect(page.locator('.contest-editor .included-row.candidate-chosen')).toHaveCount(2);
 });
+
+test('elections sort by election date and candidate screen shows contest memberships', async ({ page }, testInfo) => {
+  await page.goto('https://joshuacwebdeveloper.github.io/election-notes/');
+  await page.getByRole('button', { name: /^Candidates/ }).first().click();
+  await expect(page.getByRole('heading', { name: 'Elections', exact: true })).toBeVisible();
+  await expect(page.locator('.candidate-election-membership').first()).toContainText('Example Local Election');
+  await expect(page.locator('.candidate-election-membership').first()).toContainText('Example Local Election contest');
+  await page.screenshot({ path: testInfo.outputPath('candidate-memberships.png'), fullPage: true });
+});

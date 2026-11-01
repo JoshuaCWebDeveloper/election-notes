@@ -1439,3 +1439,9 @@ textarea {
 /* Selected indicators use the same native checkbox geometry as selection mode. */
 .score-selection-row input.selection-indicator,
 .included-row input.selection-indicator { opacity: 1; cursor: default; pointer-events: none; }
+
+.candidate-election-memberships { border: 1px solid #d8dee6; border-radius: 8px; padding: 1rem; display: grid; gap: .5rem; }
+.candidate-election-memberships h4 { margin: 0 0 .25rem; }
+.candidate-election-membership { border-bottom: 1px solid #e2e8f0; padding: .5rem 0; }
+.candidate-election-membership:last-child { border-bottom: 0; }
+.candidate-election-memberships p { margin: 0; color: #667487; }
