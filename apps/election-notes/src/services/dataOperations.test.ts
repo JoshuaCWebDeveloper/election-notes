@@ -14,7 +14,7 @@ import {
 } from '../repositories/indexedDb';
 import { exportBackup } from '../repositories/backup';
 import { canRestoreSeedData, createBackupJson, loadDatabase, resetDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, deleteEntity, validateDatabase } from './database';
-import { candidateFromInlineName, contestFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName } from './elections';
+import { candidateFromInlineName, contestFromInlineName, copyElectionIssues, duplicateElection, duplicateElectionContests, issueFromInlineName } from './elections';
 import { countStanceFacts, getAvailableFactsForStance, getCandidateContestRows, getReportPanelData, reportDashboards, scoreElection } from './reports';
 
 const databaseName = 'election-notes';
@@ -790,6 +790,16 @@ describe('Directus report data operations', () => {
 });
 
 describe('election UX helpers', () => {
+  it('copies election issue weights without duplicating issues or overwriting target values', () => {
+    const target = [{ issueId: 2, points: 75 }];
+    const source = [{ issueId: 1, points: 10 }, { issueId: 2, points: 20 }, { issueId: 3, points: 30 }];
+    const result = copyElectionIssues(target, source);
+    expect(result).toEqual([{ issueId: 2, points: 75 }, { issueId: 1, points: 10 }, { issueId: 3, points: 30 }]);
+    expect(copyElectionIssues(result, source)).toEqual(result);
+    expect(target).toEqual([{ issueId: 2, points: 75 }]);
+    expect(source).toEqual([{ issueId: 1, points: 10 }, { issueId: 2, points: 20 }, { issueId: 3, points: 30 }]);
+  });
+
   it('duplicates elections and their contests with new ids while preserving weighted issues', () => {
     const data = emptyDatabase();
     const election = {

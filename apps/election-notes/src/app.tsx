@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type R
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getReportChartLayout, ReportChart } from './components/reportChart';
 import { canRestoreSeedData, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
-import { candidateFromInlineName, contestFromInlineName, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
+import { candidateFromInlineName, contestFromInlineName, copyElectionIssues, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
 import { averageIssueConfidence, countIssueStances, countStanceFacts, getAvailableFactsForStance, getCandidateContestRows, getElectionCandidateCount, getElectionContestCount, getElectionContests, getReportPanelData, reportDashboards, type ReportDatum, type ReportPanel } from './services/reports';
 import type { Candidate, Contest, Database, Election, ElectionIssue, Fact, First, Id, Issue, Stance, StanceFact } from './types';
 
@@ -2067,6 +2067,10 @@ function ElectionIssueEditor({
 }) {
   const [addOpen, setAddOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [copySourceId, setCopySourceId] = useState('');
+  const otherElections = db.elections.filter((item) => item.id !== electionId && item.issues.length > 0);
+  const copySource = otherElections.find((item) => String(item.id) === copySourceId);
+  const issuesToCopy = copySource?.issues.filter((item) => !value.some((existing) => existing.issueId === item.issueId)) ?? [];
   const included = value
     .map((item) => ({ ...item, issue: issues.find((issue) => issue.id === item.issueId) ?? null }))
     .filter((item) => item.issue !== null)
@@ -2102,6 +2106,30 @@ function ElectionIssueEditor({
             <button type="button" aria-label={`Remove ${issueName(item.issue)}`} onClick={() => onChange(value.filter((row) => row.issueId !== item.issueId))}><X size={16} /></button>
           </div>
         ))}
+      </div>
+      <div className="copy-election-issues">
+        <label htmlFor={`issue-copy-source-${electionId}`}>Copy issues from another election</label>
+        <div className="copy-election-issues-controls">
+          <select
+            id={`issue-copy-source-${electionId}`}
+            value={copySourceId}
+            onChange={(event) => setCopySourceId(event.target.value)}
+            disabled={otherElections.length === 0}
+          >
+            <option value="">Select an election</option>
+            {otherElections.map((item) => (
+              <option key={item.id} value={item.id}>{item.name} ({item.issues.length} issues)</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={!copySource || issuesToCopy.length === 0}
+            onClick={() => { if (copySource) onChange(copyElectionIssues(value, copySource.issues)); }}
+          ><Copy size={16} /> Copy {issuesToCopy.length > 0 ? `${issuesToCopy.length} ${issuesToCopy.length === 1 ? 'issue' : 'issues'}` : 'issues'}</button>
+        </div>
+        {otherElections.length === 0 && <p>No other elections have issues to copy.</p>}
+        {copySource && issuesToCopy.length === 0 && <p>All issues from this election are already included.</p>}
+        {copySource && issuesToCopy.length > 0 && <p>Existing issues and their point values will be kept.</p>}
       </div>
       <SearchAddPopover
         buttonLabel="Add issue"

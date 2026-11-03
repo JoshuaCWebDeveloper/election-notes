@@ -1,4 +1,4 @@
-import type { Candidate, Contest, Database, Election, Id, Issue } from '../types';
+import type { Candidate, Contest, Database, Election, ElectionIssue, Id, Issue } from '../types';
 
 export function nextId(rows: { id: Id }[]) {
   return Math.max(0, ...rows.map((row) => row.id)) + 1;
@@ -19,6 +19,18 @@ export function duplicateElection(election: Election, db: Database, dateUpdated 
       return nextIssue;
     })
   };
+}
+
+/** Copy election-issue associations, not global Issue records. Existing target weights win. */
+export function copyElectionIssues(target: ElectionIssue[], source: ElectionIssue[]): ElectionIssue[] {
+  const existing = new Set(target.map((item) => item.issueId));
+  const result = target.map((item) => ({ ...item }));
+  for (const item of source) {
+    if (existing.has(item.issueId)) continue;
+    result.push({ issueId: item.issueId, points: item.points });
+    existing.add(item.issueId);
+  }
+  return result;
 }
 
 export function duplicateElectionContests(sourceElectionId: Id, targetElectionId: Id, db: Database): Contest[] {

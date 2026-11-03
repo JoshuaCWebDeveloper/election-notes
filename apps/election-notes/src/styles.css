@@ -1478,3 +1478,17 @@ textarea {
   width: 2.35rem;
   justify-self: end;
 }
+
+.copy-election-issues {
+  display: grid;
+  gap: 0.4rem;
+  border-top: 1px solid #d8dee6;
+  padding-top: 0.8rem;
+  margin-top: 0.3rem;
+}
+
+.copy-election-issues > label { font-size: 0.9rem; font-weight: 600; }
+.copy-election-issues-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.copy-election-issues-controls select { flex: 1 1 12rem; min-width: 0; }
+.copy-election-issues-controls button { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; }
+.copy-election-issues p { margin: 0; color: #667487; font-size: 0.85rem; }
