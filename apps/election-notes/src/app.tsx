@@ -2,7 +2,7 @@ import { mergeCandidates, previewCandidateMerge } from './services/mergeCandidat
 import { exportElectionFilename, exportElectionJson, importDatabaseJson } from './services/importExport';
 import { ChevronDown, ChevronRight, Copy, Download, Menu, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import { getReportChartLayout, ReportChart } from './components/reportChart';
 import { canRestoreSeedData, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
 import { candidateFromInlineName, compareElectionsByDateDescending, contestFromInlineName, copyElectionIssues, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
@@ -1451,9 +1451,9 @@ function Editor({
         <section className="candidate-election-memberships" aria-label="Candidate elections">
           <h4>Elections</h4>
           {db.contests.filter(contest => contest.candidateIds.includes(row.id)).map(contest => ({ contest, election: db.elections.find(election => election.id === contest.electionId) })).filter((item): item is { contest: Contest; election: Election } => item.election !== undefined).sort((left, right) => dateValue(right.election.date) - dateValue(left.election.date) || left.election.name.localeCompare(right.election.name) || left.contest.name.localeCompare(right.contest.name)).map(({ contest, election }) => (
-            <div className="candidate-election-membership" key={contest.id}>
+            <RouterLink className="candidate-election-membership" key={contest.id} to={pathForElectionExpansion(election.id, contest.id, row.id)}>
               <strong>{election.name}</strong><span> – {contest.name}</span>
-            </div>
+            </RouterLink>
           ))}
           {!db.contests.some(contest => contest.candidateIds.includes(row.id) && db.elections.some(election => election.id === contest.electionId)) && <p>No elections.</p>}
         </section>

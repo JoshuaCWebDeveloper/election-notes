@@ -1492,3 +1492,8 @@ textarea {
 .copy-election-issues-controls select { flex: 1 1 12rem; min-width: 0; }
 .copy-election-issues-controls button { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; }
 .copy-election-issues p { margin: 0; color: #667487; font-size: 0.85rem; }
+
+/* Candidate election memberships navigate to the corresponding contest/candidate. */
+.candidate-election-membership { display: block; color: #1d2430; text-decoration: none; border-radius: 5px; padding: .55rem .5rem; }
+.candidate-election-membership:hover { background: #eef6f8; color: #176b87; }
+.candidate-election-membership:focus-visible { outline: 2px solid #176b87; outline-offset: 2px; }

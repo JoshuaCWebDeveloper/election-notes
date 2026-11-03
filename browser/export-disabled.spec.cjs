@@ -159,3 +159,18 @@ test('chart label tooltips retain the full text', async ({ page }, testInfo) => 
   await labels.first().hover();
   await page.screenshot({ path: testInfo.outputPath('chart-label-hover.png'), fullPage: true });
 });
+
+test('global candidate election membership links to its contest and expands candidate', async ({ page }, testInfo) => {
+  await page.goto('https://joshuacwebdeveloper.github.io/election-notes/');
+  await page.getByRole('button', { name: /^Candidates/ }).first().click();
+  const membership = page.locator('.candidate-election-membership').first();
+  await expect(membership).toContainText('Example Local Election contest');
+  const href = await membership.getAttribute('href');
+  expect(href).toMatch(/\/elections\/\d+\/contests\/\d+\/candidates\/\d+$/);
+  await page.screenshot({path: testInfo.outputPath('candidate-membership-link.png'), fullPage:true});
+  await membership.click();
+  await expect(page).toHaveURL(new RegExp(href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'));
+  await expect(page.locator('.contest-report-group').filter({hasText:'Example Local Election contest'}).locator('.score-card.expanded')).toHaveCount(1);
+  await expect(page.locator('.candidate-stance-panel')).toHaveCount(1);
+  await page.screenshot({path:testInfo.outputPath('linked-contest-expanded.png'), fullPage:true});
+});
