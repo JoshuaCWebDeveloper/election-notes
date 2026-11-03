@@ -128,4 +128,19 @@ test('election issue cards have aligned fixed-width points and remove columns', 
   expect(Math.abs(narrow[0].pointsX - narrow[1].pointsX)).toBeLessThan(1);
   for (const row of narrow) expect(row.inputRight).toBeLessThan(row.right);
   await page.screenshot({ path: testInfo.outputPath('election-issue-grid-narrow.png'), fullPage: true });
+  // Reproduce the long-description case in issue #9 without modifying stored data.
+  await issueRows.first().locator('.issue-card-copy span').first().evaluate(element => {
+    element.textContent = 'A lengthy issue description that covers multiple policies and considerations, including several interconnected proposals and a detailed explanation that wraps across many lines in the narrow issue card.';
+  });
+  const longDescription = await issueRows.evaluateAll(rows => rows.map(row => {
+    const text = row.querySelector('.issue-card-copy').getBoundingClientRect();
+    const points = row.querySelector('.points-input').getBoundingClientRect();
+    const remove = row.querySelector('button').getBoundingClientRect();
+    return { textHeight: text.height, pointsX: points.x, pointsWidth: points.width, removeX: remove.x };
+  }));
+  expect(longDescription[0].textHeight).toBeGreaterThan(longDescription[1].textHeight);
+  expect(Math.abs(longDescription[0].pointsX - longDescription[1].pointsX)).toBeLessThan(1);
+  expect(Math.abs(longDescription[0].pointsWidth - longDescription[1].pointsWidth)).toBeLessThan(1);
+  expect(Math.abs(longDescription[0].removeX - longDescription[1].removeX)).toBeLessThan(1);
+  await page.screenshot({ path: testInfo.outputPath('election-issue-grid-long-description.png'), fullPage: true });
 });
