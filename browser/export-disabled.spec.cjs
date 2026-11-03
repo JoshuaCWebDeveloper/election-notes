@@ -111,7 +111,7 @@ test('election issue cards have aligned fixed-width points and remove columns', 
   console.log('ISSUE CARD GRID GEOMETRY', JSON.stringify(geometry));
   for (const row of geometry) {
     expect(row.grid).toBe('grid');
-    expect(row.points.width).toBeGreaterThan(95);
+    expect(row.points.width).toBeCloseTo(80, 0);
     expect(Math.abs(row.points.width - row.input.width)).toBeLessThan(2);
   }
   for (const key of ['details', 'points', 'remove']) {
