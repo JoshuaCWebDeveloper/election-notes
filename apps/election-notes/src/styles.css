@@ -1456,3 +1456,25 @@ textarea {
 .list .merge-candidate-list-row { display: grid; grid-template-columns: 1.4rem minmax(0, 1fr); align-items: center; width: 100%; min-width: 0; }
 .list .merge-candidate-list-row > button { display: grid; width: 100%; min-width: 0; justify-self: stretch; }
 .list .merge-candidate-list-row > input[type="checkbox"] { width: 1.1rem; height: 1.1rem; min-height: 1.1rem; margin: 0; }
+
+/* Issue rows share three consistent columns, regardless of description length.
+   Override the generic candidate-row flex styling above. */
+.election-editor-columns .included-list .included-row.issue-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7rem 2.35rem;
+  gap: .65rem;
+  align-items: center;
+}
+.election-editor-columns .issue-row .points-input {
+  width: 100%;
+  min-width: 0;
+}
+.election-editor-columns .issue-row .points-input input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+.election-editor-columns .issue-row > button {
+  width: 2.35rem;
+  justify-self: end;
+}

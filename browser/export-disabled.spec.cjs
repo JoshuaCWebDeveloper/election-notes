@@ -94,3 +94,38 @@ test('merge candidate preview and commit preserve membership', async ({ page }, 
   await expect(page.locator('.candidate-election-membership').first()).toContainText('Example Local Election contest');
   await page.screenshot({ path: testInfo.outputPath('candidate-merge-result.png'), fullPage: true });
 });
+
+test('election issue cards have aligned fixed-width points and remove columns', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1360, height: 900 });
+  await page.goto('https://joshuacwebdeveloper.github.io/election-notes/');
+  await page.getByRole('button', { name: /Example Local Election/ }).first().click();
+  const issueRows = page.locator('.election-editor-columns .issue-row');
+  await expect(issueRows).toHaveCount(2);
+  const geometry = await issueRows.evaluateAll(rows => rows.map(row => {
+    const rect = (element) => {
+      const box = element.getBoundingClientRect();
+      return { x: box.x, width: box.width };
+    };
+    return { grid: getComputedStyle(row).display, details: rect(row.querySelector('.issue-card-copy')), points: rect(row.querySelector('.points-input')), input: rect(row.querySelector('.points-input input')), remove: rect(row.querySelector('button')) };
+  }));
+  console.log('ISSUE CARD GRID GEOMETRY', JSON.stringify(geometry));
+  for (const row of geometry) {
+    expect(row.grid).toBe('grid');
+    expect(row.points.width).toBeGreaterThan(95);
+    expect(Math.abs(row.points.width - row.input.width)).toBeLessThan(2);
+  }
+  for (const key of ['details', 'points', 'remove']) {
+    expect(Math.abs(geometry[0][key].x - geometry[1][key].x)).toBeLessThan(1);
+    expect(Math.abs(geometry[0][key].width - geometry[1][key].width)).toBeLessThan(1);
+  }
+  await issueRows.first().scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath('election-issue-grid-desktop.png'), fullPage: true });
+  await page.setViewportSize({width: 1100, height: 900});
+  const narrow = await issueRows.evaluateAll(rows => rows.map(row => {
+    const r = row.getBoundingClientRect(), points = row.querySelector('.points-input').getBoundingClientRect(), input = row.querySelector('input').getBoundingClientRect();
+    return { left: r.x, right: r.right, pointsX: points.x, pointsW: points.width, inputRight: input.right };
+  }));
+  expect(Math.abs(narrow[0].pointsX - narrow[1].pointsX)).toBeLessThan(1);
+  for (const row of narrow) expect(row.inputRight).toBeLessThan(row.right);
+  await page.screenshot({ path: testInfo.outputPath('election-issue-grid-narrow.png'), fullPage: true });
+});
