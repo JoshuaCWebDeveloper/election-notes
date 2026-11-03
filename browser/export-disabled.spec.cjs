@@ -144,3 +144,18 @@ test('election issue cards have aligned fixed-width points and remove columns', 
   expect(Math.abs(longDescription[0].removeX - longDescription[1].removeX)).toBeLessThan(1);
   await page.screenshot({ path: testInfo.outputPath('election-issue-grid-long-description.png'), fullPage: true });
 });
+
+test('chart label tooltips retain the full text', async ({ page }, testInfo) => {
+  await page.goto('https://joshuacwebdeveloper.github.io/election-notes/');
+  await page.getByRole('button', { name: /Example Local Election/ }).first().click();
+  const labels = page.locator('.horizontal-bar-chart__row > span, .vertical-column-chart__column > span');
+  await expect.poll(() => labels.count()).toBeGreaterThan(0);
+  const details = await labels.evaluateAll(elements => elements.map(el => [el.textContent, el.getAttribute('title')]));
+  for (const [label, title] of details) expect(title).toBe(label);
+  const headings = page.locator('.report-panel-heading h4');
+  const headingDetails = await headings.evaluateAll(elements => elements.map(el => [el.textContent, el.getAttribute('title')]));
+  for (const [label, title] of headingDetails) expect(title).toBe(label);
+  await labels.first().scrollIntoViewIfNeeded();
+  await labels.first().hover();
+  await page.screenshot({ path: testInfo.outputPath('chart-label-hover.png'), fullPage: true });
+});

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { getReportChartLayout } from './reportChart';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { getReportChartLayout, ReportChart } from './reportChart';
 import type { ReportPanel } from '../services/reports';
 
 const basePanel: ReportPanel = {
@@ -24,5 +26,18 @@ describe('getReportChartLayout', () => {
       orientation: 'vertical-columns',
       scrollAxis: 'x'
     });
+  });
+});
+
+
+describe('chart label hover tooltips', () => {
+  const datum = [{ id: 1, label: 'A particularly long chart label that will be truncated', value: 42, color: null }];
+  it.each(['horizontal-bars', 'vertical-columns'] as const)('retains full label in the %s tooltip', (orientation) => {
+    const html = renderToStaticMarkup(createElement(ReportChart, {
+      data: datum,
+      layout: { orientation, scrollAxis: orientation === 'horizontal-bars' ? 'y' : 'x' }
+    }));
+    expect(html).toContain('title="A particularly long chart label that will be truncated"');
+    expect(html).toContain('A particularly long chart label that will be truncated</span>');
   });
 });

@@ -1196,7 +1196,7 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
     return (
       <article className="report-panel candidate-contest-report wide-panel">
         <div className="report-panel-heading">
-          <h4>{panel.name}</h4>
+          <h4 title={panel.name}>{panel.name}</h4>
           {sortControl}
         </div>
         <div className="report-panel-body candidate-chart-height-report-body">
@@ -1207,7 +1207,7 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
                 <div className="contest-candidate-list">
                   {contestRow.candidates.map((row, index) => (
                     <div className="contest-row" key={row.candidate.id}>
-                      <span>{index + 1}. {candidateName(row.candidate)}</span>
+                      <span title={`${index + 1}. ${candidateName(row.candidate)}`}>{index + 1}. {candidateName(row.candidate)}</span>
                       <b>{formatScore(row.score)}</b>
                     </div>
                   ))}
@@ -1226,7 +1226,7 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
     return (
       <article className="report-panel">
         <div className="report-panel-heading">
-          <h4>{panel.name}</h4>
+          <h4 title={panel.name}>{panel.name}</h4>
           {sortControl}
         </div>
         <div className="report-panel-body scrollable-report-body">
@@ -1245,7 +1245,7 @@ function ReportPanelView({ contest, db, election, panel }: { contest?: Contest; 
   return (
     <article className="report-panel">
       <div className="report-panel-heading">
-        <h4>{panel.name}</h4>
+        <h4 title={panel.name}>{panel.name}</h4>
         {sortControl}
       </div>
       <div className="report-panel-body chart-report-body">

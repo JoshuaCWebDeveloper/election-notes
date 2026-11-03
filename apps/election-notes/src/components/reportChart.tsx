@@ -46,7 +46,7 @@ function HorizontalBarChart({ data, max }: { data: ReportDatum[]; max: number })
     <div className="horizontal-bar-chart">
       {data.map((item) => (
         <div className="horizontal-bar-chart__row" key={item.id}>
-          <span>{item.label}</span>
+          <span title={item.label}>{item.label}</span>
           <div className="horizontal-bar-chart__axis">
             <i
               aria-label={`${item.label}: ${formatChartValue(item.value)}`}
@@ -71,7 +71,7 @@ function VerticalColumnChart({ data, max }: { data: ReportDatum[]; max: number }
               aria-label={`${item.label}: ${formatChartValue(item.value)}`}
               style={chartItemStyle(item, max)}
             />
-            <span>{item.label}</span>
+            <span title={item.label}>{item.label}</span>
           </div>
         ))}
       </div>
