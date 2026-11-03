@@ -1,5 +1,15 @@
 import type { Candidate, Contest, Database, Election, ElectionIssue, Id, Issue } from '../types';
 
+/** Shared ordering for election lists, with undated elections last. */
+export function compareElectionsByDateDescending(left: Election, right: Election): number {
+  const timestamp = (value: string | null) => {
+    if (!value) return Number.NEGATIVE_INFINITY;
+    const time = new Date(value).getTime();
+    return Number.isNaN(time) ? Number.NEGATIVE_INFINITY : time;
+  };
+  return timestamp(right.date) - timestamp(left.date) || left.name.localeCompare(right.name);
+}
+
 export function nextId(rows: { id: Id }[]) {
   return Math.max(0, ...rows.map((row) => row.id)) + 1;
 }

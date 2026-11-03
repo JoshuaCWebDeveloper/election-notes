@@ -2,6 +2,11 @@ import type { Database, Id } from '../types';
 import { loadAllStores, openDatabase, storeNames } from '../repositories/indexedDb';
 import { validateDatabase } from './database';
 
+/** ISO UTC datetime with filesystem-safe separators to distinguish same-day exports. */
+export function exportElectionFilename(now = new Date()): string {
+  return `election-notes-export-${now.toISOString().replace(/:/g, '-')}.json`;
+}
+
 export function selectElectionData(db: Database, ids: Id[]): Database {
   const selected = new Set(ids);
   const elections = db.elections.filter(e => selected.has(e.id));

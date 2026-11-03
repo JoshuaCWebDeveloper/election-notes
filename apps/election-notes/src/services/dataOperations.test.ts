@@ -14,7 +14,7 @@ import {
 } from '../repositories/indexedDb';
 import { exportBackup } from '../repositories/backup';
 import { canRestoreSeedData, createBackupJson, loadDatabase, resetDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, deleteEntity, validateDatabase } from './database';
-import { candidateFromInlineName, contestFromInlineName, copyElectionIssues, duplicateElection, duplicateElectionContests, issueFromInlineName } from './elections';
+import { candidateFromInlineName, compareElectionsByDateDescending, contestFromInlineName, copyElectionIssues, duplicateElection, duplicateElectionContests, issueFromInlineName } from './elections';
 import { countStanceFacts, getAvailableFactsForStance, getCandidateContestRows, getReportPanelData, reportDashboards, scoreElection } from './reports';
 
 const databaseName = 'election-notes';
@@ -790,6 +790,19 @@ describe('Directus report data operations', () => {
 });
 
 describe('election UX helpers', () => {
+  it('orders elections by date descending with undated elections last and name tie-breaks', () => {
+    const make = (id: number, name: string, date: string | null) => ({ id, name, date, date_updated: null, description: null, issues: [] });
+    const elections = [
+      make(1, 'Older', '2024-06-01'),
+      make(2, 'No date', null),
+      make(3, 'Zulu', '2026-11-03'),
+      make(4, 'Alpha', '2026-11-03'),
+      make(5, 'Newest', '2027-06-01')
+    ];
+    expect([...elections].sort(compareElectionsByDateDescending).map((item) => item.id)).toEqual([5, 4, 3, 1, 2]);
+    expect(elections.map((item) => item.id)).toEqual([1, 2, 3, 4, 5]);
+  });
+
   it('copies election issue weights without duplicating issues or overwriting target values', () => {
     const target = [{ issueId: 2, points: 75 }];
     const source = [{ issueId: 1, points: 10 }, { issueId: 2, points: 20 }, { issueId: 3, points: 30 }];

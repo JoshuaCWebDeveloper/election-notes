@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto';
 import { seedData } from '../seed';
 import type { Database } from '../types';
 import { loadAllStores, replaceAllStores } from '../repositories/indexedDb';
-import { importDatabaseJson, selectElectionData } from './importExport';
+import { exportElectionFilename, importDatabaseJson, selectElectionData } from './importExport';
 
 const empty = (): Database => ({ candidates: [], issues: [], stances: [], facts: [], stanceFacts: [], firstRecords: [], elections: [], contests: [] });
 
@@ -101,5 +101,17 @@ describe('selected export', () => {
     expect(selected.contests.every(c => c.electionId === db.elections[0].id)).toBe(true);
     expect(selected.firstRecords).toEqual([]);
     expect(selected.candidates.every(c => selected.contests.some(co => co.candidateIds.includes(c.id)) || selected.stances.some(s => s.candidate === c.id))).toBe(true);
+  });
+});
+
+
+describe('export filename', () => {
+  it('includes full UTC date, time, milliseconds, and filesystem-safe separators', () => {
+    expect(exportElectionFilename(new Date('2026-11-02T17:04:05.123Z')))
+      .toBe('election-notes-export-2026-11-02T17-04-05.123Z.json');
+  });
+  it('generates distinct filenames for different times on the same day', () => {
+    expect(exportElectionFilename(new Date('2026-11-02T17:04:05.123Z')))
+      .not.toBe(exportElectionFilename(new Date('2026-11-02T17:04:05.124Z')));
   });
 });

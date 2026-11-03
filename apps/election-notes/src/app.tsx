@@ -1,11 +1,11 @@
 import { mergeCandidates, previewCandidateMerge } from './services/mergeCandidates';
-import { exportElectionJson, importDatabaseJson } from './services/importExport';
+import { exportElectionFilename, exportElectionJson, importDatabaseJson } from './services/importExport';
 import { ChevronDown, ChevronRight, Copy, Download, Menu, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getReportChartLayout, ReportChart } from './components/reportChart';
 import { canRestoreSeedData, deleteEntity, loadDatabase, restoreDatabaseFromJson, restoreDatabaseFromSeed, saveEntity, type EntityKey } from './services/database';
-import { candidateFromInlineName, contestFromInlineName, copyElectionIssues, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
+import { candidateFromInlineName, compareElectionsByDateDescending, contestFromInlineName, copyElectionIssues, duplicateElection, duplicateElectionContests, issueFromInlineName, nextId } from './services/elections';
 import { averageIssueConfidence, countIssueStances, countStanceFacts, getAvailableFactsForStance, getCandidateContestRows, getElectionCandidateCount, getElectionContestCount, getElectionContests, getReportPanelData, reportDashboards, type ReportDatum, type ReportPanel } from './services/reports';
 import type { Candidate, Contest, Database, Election, ElectionIssue, Fact, First, Id, Issue, Stance, StanceFact } from './types';
 
@@ -627,7 +627,7 @@ export function App() {
     const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
     const link = document.createElement('a');
     link.href = url;
-    link.download = `election-notes-export-${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = exportElectionFilename();
     link.click();
     URL.revokeObjectURL(url);
     setExportOpen(false);
@@ -753,7 +753,7 @@ export function App() {
                 <input type="checkbox" checked={db.elections.length > 0 && exportIds.length === db.elections.length} disabled={!db.elections.length} onChange={event => setExportIds(event.target.checked ? db.elections.map(e => e.id) : [])} />
                 {exportIds.length === db.elections.length && db.elections.length > 0 ? 'Unselect All' : 'Select All'}
               </label>
-              <div className="export-election-items">{db.elections.map(e => <label className={`checkbox-row export-election-row${exportIds.includes(e.id) ? ' is-selected' : ''}`} key={e.id}><input type="checkbox" checked={exportIds.includes(e.id)} onChange={event => setExportIds(previous => event.target.checked ? [...previous, e.id] : previous.filter(id => id !== e.id))} />{e.name}</label>)}</div>
+              <div className="export-election-items">{[...db.elections].sort(compareElectionsByDateDescending).map(e => <label className={`checkbox-row export-election-row${exportIds.includes(e.id) ? ' is-selected' : ''}`} key={e.id}><input type="checkbox" checked={exportIds.includes(e.id)} onChange={event => setExportIds(previous => event.target.checked ? [...previous, e.id] : previous.filter(id => id !== e.id))} />{e.name}</label>)}</div>
             </div>
             {exportError && <p className="modal-error">{exportError}</p>}
             <div className="modal-actions"><button type="button" onClick={() => setExportOpen(false)}>Cancel</button><button type="button" disabled={exportIds.length === 0} onClick={() => exportIds.length > 0 && downloadExport(exportIds.length === db.elections.length ? null : exportIds)}>{exportIds.length ? `Export ${exportIds.length}` : 'Export'}</button></div>
@@ -2285,7 +2285,7 @@ function getIssueElectionCount(db: Database, issueId: Id) {
 
 function sortRowsForTab<TStore extends EntityKey>(rows: Database[TStore], entity: TStore, db: Database): Database[TStore] {
   if (entity === 'elections') {
-    return [...rows].sort((left, right) => dateValue((right as Election).date) - dateValue((left as Election).date) || (left as Election).name.localeCompare((right as Election).name)) as Database[TStore];
+    return [...rows].sort((left, right) => compareElectionsByDateDescending(left as Election, right as Election)) as Database[TStore];
   }
   if (entity === 'candidates') {
     return [...rows].sort((left, right) => compareCandidatesByLastWord(left as Candidate, right as Candidate)) as Database[TStore];
