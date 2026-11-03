@@ -1461,7 +1461,7 @@ textarea {
    Override the generic candidate-row flex styling above. */
 .election-editor-columns .included-list .included-row.issue-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 7rem 2.35rem;
+  grid-template-columns: minmax(0, 1fr) 5rem 2.35rem;
   gap: .65rem;
   align-items: center;
 }
